@@ -14,6 +14,7 @@ import { profileService } from '@/services/supabase/profile.service';
 import { locationService, City } from '@/services/location/location.service';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useLocation } from '@/features/location/hooks/useLocation';
 
 export default function LocationStep() {
   const router = useRouter();
@@ -29,6 +30,16 @@ export default function LocationStep() {
   
   const setLocation = useOnboardingStore((state) => state.setLocation);
   const currentLocation = useOnboardingStore((state) => state.location);
+
+  const { 
+    countryCode, setCountryCode, 
+    region, setRegion, 
+    countries, regions, cities: regionCities,
+    isLoadingCountries, isLoadingRegions, isLoadingCities,
+    isCityDataAvailable, isLoadingAvailability
+  } = useLocation();
+
+  const [selectionMode, setSelectionMode] = useState<'search' | 'hierarchical'>('search');
 
   const handleUseGPS = async () => {
     setLoading(true);
@@ -185,48 +196,157 @@ export default function LocationStep() {
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select City</Text>
-            <TouchableOpacity onPress={() => setShowSearch(false)}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {selectionMode === 'search' ? 'Search City' : 'Select Location'}
+            </Text>
+            <TouchableOpacity onPress={() => {
+              setShowSearch(false);
+              setCountryCode(null);
+              setRegion(null);
+            }}>
               <X size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.searchBar, { backgroundColor: colors.primary + '10' }]}>
-            <Search size={20} color={colors.text + '80'} />
-            <TextInput 
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search city..."
-              placeholderTextColor={colors.text + '50'}
-              value={searchQuery}
-              onChangeText={handleSearch}
-              autoFocus
-            />
-            {searching && <ActivityIndicator size="small" color={colors.primary} />}
-          </View>
-
-          <FlatList 
-            data={cities}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                style={styles.cityItem}
-                onPress={() => handleSelectCity(item)}
-              >
-                <Text style={[styles.cityName, { color: colors.text }]}>{item.city}</Text>
-                <Text style={[styles.cityRegion, { color: colors.text + '80' }]}>
-                  {item.region ? `${item.region}, ` : ''}{item.country}
-                </Text>
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: colors.text + '50' }]}>
-                  {searchQuery.length < 2 ? 'Type at least 2 characters' : 'No cities found'}
-                </Text>
+          {!isCityDataAvailable && !isLoadingAvailability ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: colors.text, textAlign: 'center', fontWeight: 'bold' }]}>
+                City data has not been imported yet.
+              </Text>
+              <Text style={[styles.emptySubtext, { color: colors.text + '80', textAlign: 'center', marginTop: 8 }]}>
+                Please use &quot;Current Location&quot; or check back later once the administrator has set up the location database.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.tabContainer}>
+                <TouchableOpacity 
+                  style={[styles.tab, selectionMode === 'search' && { borderBottomColor: colors.primary }]}
+                  onPress={() => setSelectionMode('search')}
+                >
+                  <Text style={[styles.tabText, { color: selectionMode === 'search' ? colors.text : colors.text + '50' }]}>Search</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.tab, selectionMode === 'hierarchical' && { borderBottomColor: colors.primary }]}
+                  onPress={() => setSelectionMode('hierarchical')}
+                >
+                  <Text style={[styles.tabText, { color: selectionMode === 'hierarchical' ? colors.text : colors.text + '50' }]}>Browse</Text>
+                </TouchableOpacity>
               </View>
-            )}
-            ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
-          />
+
+              {selectionMode === 'search' ? (
+                <>
+                  <View style={[styles.searchBar, { backgroundColor: colors.primary + '10' }]}>
+                    <Search size={20} color={colors.text + '80'} />
+                    <TextInput 
+                      style={[styles.searchInput, { color: colors.text }]}
+                      placeholder="Search city..."
+                      placeholderTextColor={colors.text + '50'}
+                      value={searchQuery}
+                      onChangeText={handleSearch}
+                      autoFocus
+                    />
+                    {searching && <ActivityIndicator size="small" color={colors.primary} />}
+                  </View>
+
+                  <FlatList 
+                    data={cities}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.cityItem}
+                        onPress={() => handleSelectCity(item)}
+                      >
+                        <Text style={[styles.cityName, { color: colors.text }]}>{item.city}</Text>
+                        <Text style={[styles.cityRegion, { color: colors.text + '80' }]}>
+                          {item.region ? `${item.region}, ` : ''}{item.country}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={() => (
+                      <View style={styles.emptyContainer}>
+                        <Text style={[styles.emptyText, { color: colors.text + '50' }]}>
+                          {searchQuery.length < 2 ? 'Type at least 2 characters' : 'No cities found'}
+                        </Text>
+                      </View>
+                    )}
+                    ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
+                  />
+                </>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  {!countryCode ? (
+                    <FlatList 
+                      data={countries}
+                      keyExtractor={(item) => item.country_code}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity 
+                          style={styles.cityItem}
+                          onPress={() => setCountryCode(item.country_code)}
+                        >
+                          <Text style={[styles.cityName, { color: colors.text }]}>{item.country}</Text>
+                        </TouchableOpacity>
+                      )}
+                      ListEmptyComponent={() => (
+                        <View style={styles.emptyContainer}>
+                          {isLoadingCountries ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No countries found</Text>}
+                        </View>
+                      )}
+                      ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
+                    />
+                  ) : !region ? (
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity onPress={() => setCountryCode(null)} style={styles.backLink}>
+                        <Text style={{ color: colors.primary, fontWeight: 'bold' }}>← Back to Countries</Text>
+                      </TouchableOpacity>
+                      <FlatList 
+                        data={regions}
+                        keyExtractor={(item) => item}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity 
+                            style={styles.cityItem}
+                            onPress={() => setRegion(item)}
+                          >
+                            <Text style={[styles.cityName, { color: colors.text }]}>{item}</Text>
+                          </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={() => (
+                          <View style={styles.emptyContainer}>
+                            {isLoadingRegions ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No regions found</Text>}
+                          </View>
+                        )}
+                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
+                      />
+                    </View>
+                  ) : (
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity onPress={() => setRegion(null)} style={styles.backLink}>
+                        <Text style={{ color: colors.primary, fontWeight: 'bold' }}>← Back to Regions</Text>
+                      </TouchableOpacity>
+                      <FlatList 
+                        data={regionCities}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity 
+                            style={styles.cityItem}
+                            onPress={() => handleSelectCity(item)}
+                          >
+                            <Text style={[styles.cityName, { color: colors.text }]}>{item.city}</Text>
+                          </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={() => (
+                          <View style={styles.emptyContainer}>
+                            {isLoadingCities ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No cities found</Text>}
+                          </View>
+                        )}
+                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
+          )}
         </View>
       </Modal>
     </OnboardingLayout>
@@ -307,5 +427,30 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  backLink: {
+    paddingVertical: 12,
+    marginBottom: 8,
   },
 });

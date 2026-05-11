@@ -12,6 +12,56 @@ export interface City {
 }
 
 export const locationService = {
+  async getCountries(): Promise<{ country: string, country_code: string }[]> {
+    const { data, error } = await supabase
+      .from('cities')
+      .select('country, country_code')
+      .order('country');
+
+    if (error) {
+      console.error('Error fetching countries:', error);
+      return [];
+    }
+
+    // Unique countries
+    const unique = Array.from(new Set(data.map(c => c.country_code)))
+      .map(code => data.find(c => c.country_code === code)!);
+    
+    return unique;
+  },
+
+  async getRegions(countryCode: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('cities')
+      .select('region')
+      .eq('country_code', countryCode)
+      .not('region', 'is', null)
+      .order('region');
+
+    if (error) {
+      console.error('Error fetching regions:', error);
+      return [];
+    }
+
+    return Array.from(new Set(data.map(c => c.region!)));
+  },
+
+  async getCitiesByRegion(countryCode: string, region: string): Promise<City[]> {
+    const { data, error } = await supabase
+      .from('cities')
+      .select('*')
+      .eq('country_code', countryCode)
+      .eq('region', region)
+      .order('city');
+
+    if (error) {
+      console.error('Error fetching cities by region:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+
   async searchCities(query: string): Promise<City[]> {
     if (!query || query.length < 2) return [];
 
@@ -46,27 +96,16 @@ export const locationService = {
 
   async resolveLocation(latitude: number, longitude: number): Promise<Partial<City> | null> {
     try {
-      // Using Nominatim for free reverse geocoding (OpenStreetMap)
-      // Note: In production, consider moving this to an Edge Function
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'NamazMate-App',
-          },
-        }
-      );
-      
-      const data = await response.json();
-      
-      if (!data || !data.address) return null;
+      const { data, error } = await supabase.functions.invoke('resolve-location', {
+        body: { latitude, longitude },
+      });
 
-      return {
-        city: data.address.city || data.address.town || data.address.village || data.address.suburb || '',
-        region: data.address.state || data.address.county || '',
-        country: data.address.country || '',
-        country_code: data.address.country_code?.toUpperCase() || '',
-      };
+      if (error || !data.success) {
+        console.error('Error resolving location via Edge Function:', error || data.error);
+        return null;
+      }
+
+      return data.data;
     } catch (error) {
       console.error('Error resolving location:', error);
       return null;
