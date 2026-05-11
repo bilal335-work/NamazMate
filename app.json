@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "temp-app",
-    "slug": "temp-app",
+    "name": "NamazMate",
+    "slug": "namazmate",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "tempapp",
+    "scheme": "namazmate",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
