@@ -1,5 +1,8 @@
+import { PrayerStatus } from './prayer';
+
 export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
 export type PairStatus = 'active' | 'removed';
+export { PrayerStatus };
 
 export interface PairInvite {
   id: string;

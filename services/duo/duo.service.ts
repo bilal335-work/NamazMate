@@ -99,5 +99,60 @@ export const duoService = {
     });
     if (error) throw error;
     return data;
+  },
+
+  async getPartnerTodayLog(partnerId: string, date: string) {
+    const { data, error } = await supabase
+      .from('prayer_logs')
+      .select('*')
+      .eq('user_id', partnerId)
+      .eq('prayer_date', date)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching partner today log:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async getDuoHistory(userId: string, partnerId: string, pairStartDate: string, days?: number) {
+    let query = supabase
+      .from('prayer_logs')
+      .select('user_id, prayer_date, daily_score, fajr_status, dhuhr_status, asr_status, maghrib_status, isha_status')
+      .in('user_id', [userId, partnerId])
+      .gte('prayer_date', pairStartDate);
+
+    if (days) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const dateStr = startDate.toISOString().split('T')[0];
+      query = query.gte('prayer_date', dateStr);
+    }
+
+    const { data, error } = await query.order('prayer_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching duo history:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  async sendReminder(pairId: string, receiverId: string, prayerKey: string, message: string) {
+    const { data, error } = await supabase.functions.invoke('send-partner-reminder', {
+      body: { pairId, receiverId, prayerKey, message }
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async removePartner(pairId: string) {
+    const { data, error } = await supabase.functions.invoke('remove-partner', {
+      body: { pairId }
+    });
+    if (error) throw error;
+    return data;
   }
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, RefreshControl, Share, Alert } from 'react-native';
-import { Copy, Share2, Plus, ArrowRight, UserPlus } from 'lucide-react-native';
+import { Copy, Share2, Plus, ArrowRight } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import Colors from '@/constants/Colors';
@@ -13,6 +13,7 @@ import { useDuoRealtime } from '@/features/duo/hooks/useDuoRealtime';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppCard } from '@/components/ui/AppCard';
+import { DuoDashboard } from '@/components/duo/DuoDashboard';
 
 export default function DuoScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -72,17 +73,7 @@ export default function DuoScreen() {
   }
 
   if (activePair) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
-        <AppCard style={styles.pairedCard}>
-          <UserPlus size={48} color={colors.primary} style={{ marginBottom: 16 }} />
-          <Text style={[styles.title, { color: colors.text, textAlign: 'center' }]}>You&apos;re paired!</Text>
-          <Text style={[styles.subtitle, { color: colors.text + '80', textAlign: 'center', marginTop: 8 }]}>
-            The Duo dashboard and partner activity feed will be available in Phase 12.
-          </Text>
-        </AppCard>
-      </View>
-    );
+    return <DuoDashboard pair={activePair} onRefresh={onRefresh} />;
   }
 
   const pendingInvite = invites?.sent.find(i => i.status === 'pending');
