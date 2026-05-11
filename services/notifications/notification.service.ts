@@ -1,30 +1,42 @@
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { profileService } from '../supabase/profile.service';
 import { NotificationSettings } from '@/types/notification';
 
-// Configure how notifications are handled when the app is foregrounded
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Only set up notification handler if not in Expo Go, or lazily if needed.
+// Actually, local notifications might work in Expo Go, but the remote push token crashes.
+// Let's lazy load it.
+let Notifications: typeof import('expo-notifications') | null = null;
+
+const getNotifications = async () => {
+  if (!Notifications) {
+    Notifications = await import('expo-notifications');
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  }
+  return Notifications;
+};
 
 export const notificationService = {
   async requestPermissions() {
     if (Platform.OS === 'web') return false;
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const notifs = await getNotifications();
+    const { status: existingStatus } = await notifs.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } = await notifs.requestPermissionsAsync();
       finalStatus = status;
     }
 
@@ -32,6 +44,11 @@ export const notificationService = {
   },
 
   async getPushToken() {
+    if (isExpoGo) {
+      console.log('Push notifications (remote) are not supported in Expo Go on SDK 53+. Please use a development build.');
+      return null;
+    }
+
     if (!Device.isDevice) {
       console.log('Must use physical device for Push Notifications');
       return null;
@@ -39,12 +56,9 @@ export const notificationService = {
 
     try {
       const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-      
-      if (!projectId) {
-        console.warn('EAS Project ID not found. Push tokens might not work in development.');
-      }
+      const notifs = await getNotifications();
 
-      const token = (await Notifications.getExpoPushTokenAsync({
+      const token = (await notifs.getExpoPushTokenAsync({
         projectId,
       })).data;
 
@@ -75,16 +89,16 @@ export const notificationService = {
     date: Date,
     data: any = {}
   ) {
-    // Only schedule if the date is in the future
     if (date.getTime() <= Date.now()) return null;
 
     try {
-      const trigger: Notifications.NotificationTriggerInput = {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
+      const notifs = await getNotifications();
+      const trigger: any = {
+        type: notifs.SchedulableTriggerInputTypes.DATE,
         date: date,
-      } as any;
+      };
 
-      return await Notifications.scheduleNotificationAsync({
+      return await notifs.scheduleNotificationAsync({
         identifier: id,
         content: {
           title,
@@ -101,10 +115,12 @@ export const notificationService = {
   },
 
   async cancelAllNotifications() {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    const notifs = await getNotifications();
+    await notifs.cancelAllScheduledNotificationsAsync();
   },
 
   async getScheduledNotifications() {
-    return await Notifications.getAllScheduledNotificationsAsync();
+    const notifs = await getNotifications();
+    return await notifs.getAllScheduledNotificationsAsync();
   }
 };
