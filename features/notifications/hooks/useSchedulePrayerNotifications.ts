@@ -10,10 +10,10 @@ import { PrayerKey } from '@/types/prayer';
 const LAST_SCHEDULE_KEY = 'namazmate_last_notification_schedule';
 
 export const useSchedulePrayerNotifications = () => {
-  const { user } = useAuth();
+  const { user, onboardingCompleted } = useAuth();
 
   const scheduleAll = useCallback(async (force = false) => {
-    if (!user) return;
+    if (!user || !onboardingCompleted) return;
 
     try {
       // 1. Fetch settings and location first to check if we need to reschedule

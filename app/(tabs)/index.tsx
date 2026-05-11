@@ -6,6 +6,7 @@ import { useTodayPrayers } from '@/features/prayers/hooks/useTodayPrayers';
 import { usePrayerLog } from '@/features/prayers/hooks/usePrayerLog';
 import { usePrayerCountdown } from '@/features/prayers/hooks/usePrayerCountdown';
 import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { NextPrayerCard } from '@/components/prayer/NextPrayerCard';
 import { TodayPrayerList } from '@/components/prayer/TodayPrayerList';
 import Colors from '@/constants/Colors';
@@ -15,6 +16,8 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const backgroundColor = Colors[colorScheme].background;
   
+  const { session, user, onboardingCompleted } = useAuth();
+  
   const { data: prayerTimes, isLoading: timesLoading, refetch: refetchTimes } = useTodayPrayers();
   const { data: prayerLog, isLoading: logLoading, refetch: refetchLog } = usePrayerLog();
   const countdown = usePrayerCountdown(prayerTimes || null);
@@ -22,17 +25,21 @@ export default function HomeScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      if (!session || !user || !onboardingCompleted) return;
+      
       refetchTimes();
       refetchLog();
       // Silently reschedule notifications for the week
       scheduleAll();
-    }, [refetchTimes, refetchLog, scheduleAll])
+    }, [session, user, onboardingCompleted, refetchTimes, refetchLog, scheduleAll])
   );
 
   const onRefresh = React.useCallback(() => {
+    if (!session || !user || !onboardingCompleted) return;
+    
     refetchTimes();
     refetchLog();
-  }, [refetchTimes, refetchLog]);
+  }, [session, user, onboardingCompleted, refetchTimes, refetchLog]);
 
   const isLoading = timesLoading || logLoading;
 

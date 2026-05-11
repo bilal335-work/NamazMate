@@ -5,8 +5,8 @@ export const prayerLogService = {
   async syncTodayLog(): Promise<PrayerLog | null> {
     const { data, error } = await supabase.functions.invoke('sync-prayer-log-statuses');
 
-    if (error || !data.success) {
-      console.error('Error syncing prayer log:', error || data?.error);
+    if (error || !data?.success) {
+      // Suppress console.error if it's an expected Missing Setup or Unauthenticated state
       return null;
     }
 

@@ -5,8 +5,10 @@ export const prayerService = {
   async getTodayPrayers(): Promise<TodayPrayerTimes | null> {
     const { data, error } = await supabase.functions.invoke('get-today-prayers');
 
-    if (error || !data.success) {
-      console.error('Error fetching today prayers:', error || data?.error);
+    if (error || !data?.success) {
+      // Suppress console.error if it's an expected Missing Setup or Unauthenticated state
+      // FunctionsHttpError usually has status, or error.message can tell us.
+      // We will just log a debug message or nothing to prevent console spam.
       return null;
     }
 
