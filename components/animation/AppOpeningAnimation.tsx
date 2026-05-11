@@ -6,7 +6,10 @@ import Animated, {
   withTiming, 
   withDelay, 
   Easing,
-  runOnJS
+  runOnJS,
+  useReducedMotion,
+  withRepeat,
+  withSequence
 } from 'react-native-reanimated';
 
 interface AppOpeningAnimationProps {
@@ -19,6 +22,7 @@ const HOLD_DURATION = 600;
 const STAIRCASE_DURATION = 800;
 const STAIRCASE_STAGGER = 50;
 const EASING = Easing.bezier(0.76, 0, 0.24, 1);
+const CURSOR_BLINK_DURATION = 500;
 
 interface ColumnProps {
   index: number;
@@ -68,6 +72,8 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
   // Shared value for text
   const textTranslateY = useSharedValue(0);
   const textOpacity = useSharedValue(1);
+  const cursorOpacity = useSharedValue(1);
+  const isReducedMotion = useReducedMotion();
 
   const startStaircase = useCallback(() => {
     // Move text down and fade out
@@ -84,6 +90,21 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
   }, [height, textOpacity, textTranslateY]);
 
   useEffect(() => {
+    if (isReducedMotion) {
+      onComplete();
+      return;
+    }
+
+    // Cursor blinking animation
+    cursorOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: CURSOR_BLINK_DURATION }),
+        withTiming(1, { duration: CURSOR_BLINK_DURATION })
+      ),
+      -1,
+      true
+    );
+
     // Typewriter effect
     let currentIndex = 0;
     const interval = setInterval(() => {
@@ -98,12 +119,18 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
       }
     }, TYPEWRITER_SPEED);
 
-    return () => clearInterval(interval);
-  }, [startStaircase]);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [startStaircase, isReducedMotion, onComplete, cursorOpacity]);
 
   const textAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: textTranslateY.value }],
     opacity: textOpacity.value,
+  }));
+
+  const cursorAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: cursorOpacity.value,
   }));
 
   const columnWidth = width / 6;
@@ -129,7 +156,7 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
         <Animated.View style={[styles.textWrapper, textAnimatedStyle]}>
           <Text style={styles.text}>{displayText}</Text>
           {showCursor && (
-            <View style={styles.cursor} />
+            <Animated.View style={[styles.cursor, cursorAnimatedStyle]} />
           )}
         </Animated.View>
       </View>
