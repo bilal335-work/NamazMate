@@ -1,11 +1,12 @@
 import React from 'react';
 import { StyleSheet, ScrollView, View, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { useTodayPrayers } from '@/features/prayers/hooks/useTodayPrayers';
 import { usePrayerLog } from '@/features/prayers/hooks/usePrayerLog';
 import { usePrayerCountdown } from '@/features/prayers/hooks/usePrayerCountdown';
-import { NextPrayerCard } from '@/features/prayers/components/NextPrayerCard';
-import { TodayPrayerList } from '@/features/prayers/components/TodayPrayerList';
+import { NextPrayerCard } from '@/components/prayer/NextPrayerCard';
+import { TodayPrayerList } from '@/components/prayer/TodayPrayerList';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 
@@ -16,6 +17,13 @@ export default function HomeScreen() {
   const { data: prayerTimes, isLoading: timesLoading, refetch: refetchTimes } = useTodayPrayers();
   const { data: prayerLog, isLoading: logLoading, refetch: refetchLog } = usePrayerLog();
   const countdown = usePrayerCountdown(prayerTimes || null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchTimes();
+      refetchLog();
+    }, [refetchTimes, refetchLog])
+  );
 
   const onRefresh = React.useCallback(() => {
     refetchTimes();

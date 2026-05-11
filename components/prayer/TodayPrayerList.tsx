@@ -64,7 +64,7 @@ export const TodayPrayerList = ({ prayerTimes, prayerLog }: TodayPrayerListProps
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: charcoal }]}>Today's Prayers</Text>
+      <Text style={[styles.title, { color: charcoal }]}>Today&apos;s Prayers</Text>
       
       {prayerKeys.map((key) => {
         const timeStr = prayerTimes ? new Date(prayerTimes[key]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';

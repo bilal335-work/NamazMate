@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, Dimensions } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { TodayPrayerTimes, PrayerLog, PrayerKey } from '@/types/prayer';
 
 interface NextPrayerCardProps {

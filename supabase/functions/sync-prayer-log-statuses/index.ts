@@ -48,16 +48,39 @@ Deno.serve(async (req: Request) => {
     // Format: YYYY-MM-DD, HH:mm:ss
     const parts = formatter.formatToParts(now);
     const getPart = (type: string) => parts.find(p => p.type === type)?.value;
-    const userNowIso = `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
+    const userTodayStr = `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+    const userNowIso = `${userTodayStr}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
     const userNow = new Date(userNowIso);
 
-    // 3. Fetch or Create Today's Log
+    // 3. Cleanup: Finalize previous day logs if they exist and are not completed
+    // All non-final statuses (locked, available, qaza_available) for past dates become 'not_completed'
+    const finalStatuses = ['prayed', 'qaza_prayed', 'not_completed'];
+    const { error: cleanupError } = await supabase
+      .from('prayer_logs')
+      .update({
+        fajr_status: 'not_completed',
+        dhuhr_status: 'not_completed',
+        asr_status: 'not_completed',
+        maghrib_status: 'not_completed',
+        isha_status: 'not_completed',
+      })
+      .eq('user_id', user.id)
+      .lt('prayer_date', userTodayStr)
+      .or(`fajr_status.not.in.(${finalStatuses}),dhuhr_status.not.in.(${finalStatuses}),asr_status.not.in.(${finalStatuses}),maghrib_status.not.in.(${finalStatuses}),isha_status.not.in.(${finalStatuses})`);
+
+    if (cleanupError) {
+      console.error('Cleanup error:', cleanupError);
+    }
+
+    // 4. Fetch or Create Today's Log
     const { data: existingLog, error: logFetchError } = await supabase
       .from('prayer_logs')
       .select('*')
       .eq('user_id', user.id)
       .eq('prayer_date', todayStr)
       .maybeSingle();
+
+    if (logFetchError) throw logFetchError;
 
     const currentLog = existingLog || {
       user_id: user.id,
@@ -70,9 +93,9 @@ Deno.serve(async (req: Request) => {
       daily_score: 0,
     };
 
-    // 4. Recalculate Statuses (only for 'locked', 'available', 'qaza_available')
+    // 5. Recalculate Statuses (only for 'locked', 'available', 'qaza_available')
     const prayerKeys = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-    const updatedLog = { ...currentLog };
+    const updatedLog: Record<string, any> = { ...currentLog };
     let score = 0;
 
     for (let i = 0; i < prayerKeys.length; i++) {
@@ -83,13 +106,16 @@ Deno.serve(async (req: Request) => {
       const prayerTime = new Date(timings[key]);
       const nextPrayerTime = i < prayerKeys.length - 1 ? new Date(timings[prayerKeys[i + 1]]) : null;
 
-      // If already prayed, keep it and add to score
+      // If already final, keep it and add to score
       if (currentStatus === 'prayed') {
         score += 1;
         continue;
       }
       if (currentStatus === 'qaza_prayed') {
         score += 0.5;
+        continue;
+      }
+      if (currentStatus === 'not_completed') {
         continue;
       }
 
@@ -107,15 +133,12 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // If Maghrib has passed and Isha has started, Maghrib becomes Qaza
-      // If Isha has passed, it stays Qaza until next day Fajr (handled by date change)
-      
       updatedLog[statusKey] = newStatus;
     }
 
     updatedLog.daily_score = score;
 
-    // 5. Save
+    // 6. Save
     const { data: saved, error: saveError } = await supabase
       .from('prayer_logs')
       .upsert(updatedLog)

@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Update log
-    const updates: any = {
+    const updates: Record<string, string | number> = {
       [statusKey]: newStatus,
       [`${prayer_key}_marked_at`]: new Date().toISOString(),
     };
