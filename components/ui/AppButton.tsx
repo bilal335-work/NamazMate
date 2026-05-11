@@ -1,5 +1,6 @@
-import { TouchableOpacity, Text, ActivityIndicator, ViewStyle, TextStyle, StyleProp } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, ViewStyle, TextStyle, StyleProp, View } from 'react-native';
 import React from 'react';
+
 
 interface AppButtonProps {
   title: string;
@@ -7,6 +8,8 @@ interface AppButtonProps {
   variant?: 'solid' | 'outline' | 'ghost' | 'destructive' | 'primary' | 'link';
   loading?: boolean;
   disabled?: boolean;
+  icon?: React.ReactNode;
+  iconPosition?: 'left' | 'right';
   className?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
@@ -18,6 +21,8 @@ export const AppButton: React.FC<AppButtonProps> = ({
   variant = 'solid',
   loading = false,
   disabled = false,
+  icon,
+  iconPosition = 'left',
   className = '',
   style,
   textStyle,
@@ -55,12 +60,16 @@ export const AppButton: React.FC<AppButtonProps> = ({
       {loading ? (
         <ActivityIndicator color={actualVariant === 'solid' ? '#f4f1ea' : '#333333'} />
       ) : (
-        <Text 
-          style={textStyle}
-          className={`${textStyles[actualVariant as keyof typeof textStyles]}`}
-        >
-          {title}
-        </Text>
+        <>
+          {icon && iconPosition === 'left' && <View style={{ marginRight: 8 }}>{icon}</View>}
+          <Text 
+            style={textStyle}
+            className={`${textStyles[actualVariant as keyof typeof textStyles]}`}
+          >
+            {title}
+          </Text>
+          {icon && iconPosition === 'right' && <View style={{ marginLeft: 8 }}>{icon}</View>}
+        </>
       )}
     </TouchableOpacity>
   );
