@@ -20,18 +20,19 @@ npx tsx scripts/convert-geonames-cities.ts
 ## How to import
 
 1. Place your dataset file (`.json`) in this directory (e.g., `data/cities/free-cities.json`).
-2. Ensure the JSON objects match the required `cities` table schema:
-   - `city` (string)
-   - `region` (string, optional)
-   - `country` (string)
-   - `country_code` (string)
-   - `latitude` (number)
-   - `longitude` (number)
-   - `timezone` (string)
-3. Run the import script from the root of the project with your Supabase credentials:
+2. Ensure the JSON objects match the required `cities` table schema.
+3. Add your `SUPABASE_SERVICE_ROLE_KEY` to your local `.env` file (or provide it via environment variables).
+
+**SECURITY WARNING:**
+- Never commit your `.env` file or the `SUPABASE_SERVICE_ROLE_KEY`.
+- The `.gitignore` file is already configured to protect your environment files.
+- This script requires the **Service Role Key** because Row Level Security (RLS) blocks anonymous or standard authenticated inserts on the `cities` table.
+
+4. Run the import script from the root of the project:
 
 ```bash
 # Windows (PowerShell)
+# Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your session
 $env:SUPABASE_URL="https://your-project.supabase.co"
 $env:SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 npx tsx scripts/import-cities.ts
@@ -40,4 +41,4 @@ npx tsx scripts/import-cities.ts
 SUPABASE_URL="https://your-project.supabase.co" SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" npx tsx scripts/import-cities.ts
 ```
 
-The script will automatically pick up the dataset file from this directory, validate the data, and batch insert it into the Supabase database.
+The script will automatically pick up the dataset file from this directory, validate the data, and batch insert it into the Supabase database using the service role to bypass RLS.

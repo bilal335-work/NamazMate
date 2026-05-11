@@ -4,11 +4,14 @@ import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
 
 // Setup environment variables
+// Note: We use SUPABASE_SERVICE_ROLE_KEY because cities are protected by RLS
+// and only the service role can bypass it for initial seeding.
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be provided via environment variables.');
+  console.error('Make sure you are NOT using the EXPO_PUBLIC_SUPABASE_ANON_KEY for this script.');
   process.exit(1);
 }
 
