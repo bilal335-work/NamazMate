@@ -108,6 +108,28 @@ export const profileService = {
     return data;
   },
 
+  async getPrayerSettings(userId: string) {
+    const { data, error } = await supabase
+      .from('prayer_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  async getLocation(userId: string) {
+    const { data, error } = await supabase
+      .from('user_locations')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
   async savePushToken(userId: string, token: string, platform: 'ios' | 'android' | null, deviceId?: string) {
     const { data, error } = await supabase
       .from('push_tokens')
