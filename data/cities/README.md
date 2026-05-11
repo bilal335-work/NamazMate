@@ -7,6 +7,16 @@ This folder is used for storing free, open-source city datasets (such as from ge
 2. Do NOT use Google Places or Google Maps data.
 3. Use a completely free city dataset.
 
+## How to prepare data
+
+1. Download `cities5000.zip` from [GeoNames](https://download.geonames.org/export/dump/).
+2. Extract `cities5000.txt` into this directory (`data/cities/cities5000.txt`).
+3. Run the conversion script to generate `cities.json`:
+
+```bash
+npx tsx scripts/convert-geonames-cities.ts
+```
+
 ## How to import
 
 1. Place your dataset file (`.json`) in this directory (e.g., `data/cities/free-cities.json`).

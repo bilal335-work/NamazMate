@@ -39,6 +39,10 @@ coverage/
 supabase/.branches/
 supabase/.temp/
 
+# City datasets
+data/cities/*.txt
+data/cities/*.json
+
 .gemini
 
 .agents
