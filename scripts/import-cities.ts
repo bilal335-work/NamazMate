@@ -73,7 +73,7 @@ async function main() {
     
     const { error } = await supabase
       .from('cities')
-      .upsert(batch, { onConflict: 'city, country', ignoreDuplicates: true });
+      .upsert(batch, { onConflict: 'country_code,region,city,latitude,longitude', ignoreDuplicates: true });
 
     if (error) {
       console.error(`Error importing batch ${i / BATCH_SIZE + 1}:`, error.message);
