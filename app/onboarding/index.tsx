@@ -1,52 +1,95 @@
 import React from 'react';
-import { StyleSheet, View, Text, SafeAreaView } from 'react-native';
-import { AppButton } from '@/components/ui/AppButton';
-import { supabase } from '@/services/supabase/client';
+import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Mars, Venus, UserCircle2 } from 'lucide-react-native';
 
-export default function OnboardingPlaceholder() {
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
+import { GenderOptionCard } from '@/features/onboarding/components/GenderOptionCard';
+import { AppButton } from '@/components/ui/AppButton';
+import { genderSchema, GenderFormData } from '@/features/onboarding/schema/onboardingSchema';
+import { useOnboardingStore } from '@/features/onboarding/store/useOnboardingStore';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+import { profileService } from '@/services/supabase/profile.service';
+
+export default function GenderStep() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const setGender = useOnboardingStore((state) => state.setGender);
+  const currentGender = useOnboardingStore((state) => state.gender);
+
+  const { control, handleSubmit, formState: { isValid, isSubmitting } } = useForm<GenderFormData>({
+    resolver: zodResolver(genderSchema),
+    defaultValues: {
+      gender: currentGender?.gender || undefined,
+    },
+  });
+
+  const onSubmit = async (data: GenderFormData) => {
+    try {
+      if (user) {
+        // Save to DB immediately to persist progress
+        await profileService.updateProfile(user.id, { 
+          gender: data.gender,
+          onboarding_step: 'location'
+        });
+        setGender(data);
+        router.push('/onboarding/location');
+      }
+    } catch (error) {
+      console.error('Error saving gender:', error);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Onboarding</Text>
-        <Text style={styles.subtitle}>
-          Phase 6 will implement the full onboarding flow. 
-          For now, this is a placeholder.
-        </Text>
+    <OnboardingLayout
+      title="Tell us about yourself"
+      subtitle="Help us personalize your NamazMate experience. You can update this later in Profile."
+      footer={
         <AppButton 
-          title="Sign Out" 
-          onPress={handleLogout} 
-          variant="outline" 
+          title="Continue" 
+          onPress={handleSubmit(onSubmit)} 
+          disabled={!isValid || isSubmitting}
+          loading={isSubmitting}
+        />
+      }
+    >
+      <View style={styles.optionsContainer}>
+        <Controller
+          control={control}
+          name="gender"
+          render={({ field: { onChange, value } }) => (
+            <>
+              <GenderOptionCard 
+                label="Male" 
+                selected={value === 'male'} 
+                onSelect={() => onChange('male')}
+                icon={Mars}
+              />
+              <GenderOptionCard 
+                label="Female" 
+                selected={value === 'female'} 
+                onSelect={() => onChange('female')}
+                icon={Venus}
+              />
+              <GenderOptionCard 
+                label="Prefer not to say" 
+                selected={value === 'prefer_not_to_say'} 
+                onSelect={() => onChange('prefer_not_to_say')}
+                icon={UserCircle2}
+              />
+            </>
+          )}
         />
       </View>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  optionsContainer: {
     flex: 1,
-    backgroundColor: '#f4f1ea',
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 32,
+    paddingTop: 10,
   },
 });
