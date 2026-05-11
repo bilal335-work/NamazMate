@@ -63,6 +63,10 @@ Deno.serve(async (req: Request) => {
       .eq('prayer_date', todayStr)
       .eq('aladhan_method_id', settings.aladhan_method_id)
       .eq('aladhan_school_id', settings.aladhan_school_id)
+      .gte('latitude', location.latitude - 0.01)
+      .lte('latitude', location.latitude + 0.01)
+      .gte('longitude', location.longitude - 0.01)
+      .lte('longitude', location.longitude + 0.01)
       .maybeSingle();
 
     if (cached) {
@@ -88,11 +92,12 @@ Deno.serve(async (req: Request) => {
 
     const aladhanData = await aladhanRes.json();
     const timings = aladhanData.data.timings;
+    const offset = aladhanData.data.meta.offset;
 
-    // Helper to convert "HH:mm" to ISO string in user's timezone
+    // Helper to convert "HH:mm" to ISO string in user's timezone with offset
     const toIso = (time: string) => {
       // time is HH:mm
-      return `${todayStr}T${time}:00`;
+      return `${todayStr}T${time}:00${offset}`;
     };
 
     const normalized = {

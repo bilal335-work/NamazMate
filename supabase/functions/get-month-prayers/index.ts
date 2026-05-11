@@ -62,6 +62,10 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id)
       .eq('aladhan_method_id', settings.aladhan_method_id)
       .eq('aladhan_school_id', settings.aladhan_school_id)
+      .gte('latitude', location.latitude - 0.01)
+      .lte('latitude', location.latitude + 0.01)
+      .gte('longitude', location.longitude - 0.01)
+      .lte('longitude', location.longitude + 0.01)
       .gte('prayer_date', startDate)
       .lte('prayer_date', endDate);
 
@@ -83,14 +87,15 @@ Deno.serve(async (req: Request) => {
     const aladhanData = await aladhanRes.json();
     
     const cacheEntries = aladhanData.data.map((day: any) => {
-      const dateStr = day.date.readable; // or format it correctly
+      const dateStr = day.date.readable;
       // Aladhan returns date as DD MMM YYYY
       // We need YYYY-MM-DD
       const d = new Date(day.date.timestamp * 1000);
       const isoDate = d.toISOString().split('T')[0];
       
       const timings = day.timings;
-      const toIso = (time: string) => `${isoDate}T${time.split(' ')[0]}:00`;
+      const offset = day.meta.offset;
+      const toIso = (time: string) => `${isoDate}T${time.split(' ')[0]}:00${offset}`;
 
       return {
         user_id: user.id,
