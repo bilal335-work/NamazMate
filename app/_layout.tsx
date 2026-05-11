@@ -3,11 +3,12 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { AppOpeningAnimation } from '@/components/animation/AppOpeningAnimation';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -41,14 +42,19 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
+// Global flag to track cold open across hot reloads if needed, 
+// though useState(true) is usually enough for production.
+let isColdOpen = true;
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { session, user, loading, onboardingCompleted } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [showAnimation, setShowAnimation] = useState(isColdOpen);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || showAnimation) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboarding = segments[0] === 'onboarding';
@@ -75,15 +81,25 @@ function RootLayoutNav() {
         router.replace('/(tabs)');
       }
     }
-  }, [session, user, loading, onboardingCompleted, segments, router]);
+  }, [session, user, loading, onboardingCompleted, segments, router, showAnimation]);
+
+  const handleAnimationComplete = () => {
+    isColdOpen = false;
+    setShowAnimation(false);
+  };
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
+      
+      {showAnimation && (
+        <AppOpeningAnimation onComplete={handleAnimationComplete} />
+      )}
     </ThemeProvider>
   );
 }
