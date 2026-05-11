@@ -72,12 +72,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Call Aladhan API
-    // Format: http://api.aladhan.com/v1/timings/17-07-2007?latitude=51.508515&longitude=-0.1254872&method=2
     const [year, month, day] = todayStr.split('-');
     const aladhanDate = `${day}-${month}-${year}`;
     
-    const aladhanUrl = `https://api.aladhan.com/v1/timings/${aladhanDate}?latitude=${location.latitude}&longitude=${location.longitude}&method=${settings.aladhan_method_id}&school=${settings.aladhan_school_id}`;
+    // Apply adjustments if any
+    // tune format: Fajr,Sunrise,Dhuhr,Asr,Maghrib,Sunset,Isha,Imsak,Midnight
+    const tune = `${settings.fajr_adjustment || 0},0,${settings.dhuhr_adjustment || 0},${settings.asr_adjustment || 0},${settings.maghrib_adjustment || 0},0,${settings.isha_adjustment || 0},0,0`;
+    
+    const aladhanUrl = `https://api.aladhan.com/v1/timings/${aladhanDate}?latitude=${location.latitude}&longitude=${location.longitude}&method=${settings.aladhan_method_id}&school=${settings.aladhan_school_id}&tune=${tune}`;
     
     const aladhanRes = await fetch(aladhanUrl);
     if (!aladhanRes.ok) {

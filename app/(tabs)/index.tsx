@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { useTodayPrayers } from '@/features/prayers/hooks/useTodayPrayers';
 import { usePrayerLog } from '@/features/prayers/hooks/usePrayerLog';
 import { usePrayerCountdown } from '@/features/prayers/hooks/usePrayerCountdown';
+import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
 import { NextPrayerCard } from '@/components/prayer/NextPrayerCard';
 import { TodayPrayerList } from '@/components/prayer/TodayPrayerList';
 import Colors from '@/constants/Colors';
@@ -17,12 +18,15 @@ export default function HomeScreen() {
   const { data: prayerTimes, isLoading: timesLoading, refetch: refetchTimes } = useTodayPrayers();
   const { data: prayerLog, isLoading: logLoading, refetch: refetchLog } = usePrayerLog();
   const countdown = usePrayerCountdown(prayerTimes || null);
+  const { scheduleAll } = useSchedulePrayerNotifications();
 
   useFocusEffect(
     React.useCallback(() => {
       refetchTimes();
       refetchLog();
-    }, [refetchTimes, refetchLog])
+      // Silently reschedule notifications for the week
+      scheduleAll();
+    }, [refetchTimes, refetchLog, scheduleAll])
   );
 
   const onRefresh = React.useCallback(() => {

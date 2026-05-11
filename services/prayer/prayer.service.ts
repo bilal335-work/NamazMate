@@ -24,5 +24,22 @@ export const prayerService = {
     }
 
     return data.data;
+  },
+
+  async getPrayerTimeRange(userId: string, startDate: string, endDate: string) {
+    const { data, error } = await supabase
+      .from('prayer_time_cache')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('prayer_date', startDate)
+      .lte('prayer_date', endDate)
+      .order('prayer_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching prayer time range:', error);
+      return [];
+    }
+
+    return data;
   }
 };

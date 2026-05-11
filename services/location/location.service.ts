@@ -110,5 +110,16 @@ export const locationService = {
       console.error('Error resolving location:', error);
       return null;
     }
+  },
+
+  async getUserLocation(userId: string) {
+    const { data, error } = await supabase
+      .from('user_locations')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   }
 };

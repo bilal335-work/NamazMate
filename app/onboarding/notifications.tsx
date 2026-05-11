@@ -6,86 +6,39 @@ import { Bell } from 'lucide-react-native';
 
 import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
 import { AppButton } from '@/components/ui/AppButton';
-import { useOnboardingStore } from '@/features/onboarding/store/useOnboardingStore';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { profileService } from '@/services/supabase/profile.service';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useNotificationPermission } from '@/features/notifications/hooks/useNotificationPermission';
+import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
 
 export default function NotificationsStep() {
   const router = useRouter();
   const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
-  const [loading, setLoading] = useState(false);
-
-  const setNotificationEnabled = useOnboardingStore((state) => state.setNotificationEnabled);
+  const { requestPermission, skipNotifications, loading } = useNotificationPermission();
+  const { scheduleAll } = useSchedulePrayerNotifications();
 
   const handleAllow = async () => {
-    setLoading(true);
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
-        Alert.alert('Permission Denied', 'You can still enable notifications later in Settings.');
-        handleSkip();
-        return;
-      }
-
-      if (user) {
-        await profileService.saveNotificationSettings(user.id, {
-          prayer_reminders_enabled: true,
-          before_prayer_reminder_enabled: true,
-          qaza_reminder_enabled: true,
-          partner_activity_enabled: true,
-          push_notifications_enabled: true,
-        });
-
-        await profileService.updateProfile(user.id, {
-          onboarding_step: null // Final step before completion screen
-        });
-
-        setNotificationEnabled(true);
-        router.push('/onboarding/completion');
-      }
-    } catch (error) {
-      console.error('Error requesting notifications:', error);
-      handleSkip();
-    } finally {
-      setLoading(false);
+    const granted = await requestPermission(true);
+    if (granted) {
+      await scheduleAll();
     }
+    
+    await profileService.updateProfile(user!.id, {
+      onboarding_step: null
+    });
+    router.push('/onboarding/completion');
   };
 
   const handleSkip = async () => {
-    setLoading(true);
-    try {
-      if (user) {
-        await profileService.saveNotificationSettings(user.id, {
-          prayer_reminders_enabled: false,
-          before_prayer_reminder_enabled: false,
-          qaza_reminder_enabled: false,
-          partner_activity_enabled: false,
-          push_notifications_enabled: false,
-        });
-
-        await profileService.updateProfile(user.id, {
-          onboarding_step: null
-        });
-
-        setNotificationEnabled(false);
-        router.push('/onboarding/completion');
-      }
-    } catch (error) {
-      console.error('Error skipping notifications:', error);
-    } finally {
-      setLoading(false);
-    }
+    await skipNotifications();
+    await profileService.updateProfile(user!.id, {
+      onboarding_step: null
+    });
+    router.push('/onboarding/completion');
   };
 
   return (

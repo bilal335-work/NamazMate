@@ -73,8 +73,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Apply adjustments if any
+    const tune = `${settings.fajr_adjustment || 0},0,${settings.dhuhr_adjustment || 0},${settings.asr_adjustment || 0},${settings.maghrib_adjustment || 0},0,${settings.isha_adjustment || 0},0,0`;
+    
     // Fetch month from Aladhan
-    const aladhanUrl = `https://api.aladhan.com/v1/calendar?latitude=${location.latitude}&longitude=${location.longitude}&method=${settings.aladhan_method_id}&school=${settings.aladhan_school_id}&month=${month}&year=${year}`;
+    const aladhanUrl = `https://api.aladhan.com/v1/calendar?latitude=${location.latitude}&longitude=${location.longitude}&method=${settings.aladhan_method_id}&school=${settings.aladhan_school_id}&month=${month}&year=${year}&tune=${tune}`;
     
     const aladhanRes = await fetch(aladhanUrl);
     const aladhanData = await aladhanRes.json();

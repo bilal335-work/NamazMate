@@ -80,6 +80,8 @@ export const profileService = {
     qaza_reminder_enabled: boolean;
     partner_activity_enabled: boolean;
     push_notifications_enabled: boolean;
+    before_prayer_minutes?: number;
+    invite_notifications_enabled?: boolean;
   }) {
     const { data, error } = await supabase
       .from('notification_settings')
@@ -87,6 +89,37 @@ export const profileService = {
         user_id: userId,
         ...settings,
         updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async getNotificationSettings(userId: string) {
+    const { data, error } = await supabase
+      .from('notification_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  async savePushToken(userId: string, token: string, platform: 'ios' | 'android' | null, deviceId?: string) {
+    const { data, error } = await supabase
+      .from('push_tokens')
+      .upsert({
+        user_id: userId,
+        token,
+        platform,
+        device_id: deviceId,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,token'
       })
       .select()
       .single();
