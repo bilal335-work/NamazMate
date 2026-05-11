@@ -25,9 +25,9 @@ Deno.serve(async (req: Request) => {
 
     const { pairId, receiverId, prayerKey, message } = await req.json();
 
-    if (!pairId || !receiverId || !prayerKey || !message) {
+    if (!pairId || !receiverId || !prayerKey || !message || message.trim().length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: { code: 'INVALID_INPUT', message: 'Missing required fields.' } }),
+        JSON.stringify({ success: false, error: { code: 'INVALID_INPUT', message: 'Missing required fields or empty message.' } }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
