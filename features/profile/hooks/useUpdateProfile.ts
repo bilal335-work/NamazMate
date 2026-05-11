@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { profileService, ProfileUpdate } from '@/services/supabase/profile.service';
+import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
 
 export const useUpdateProfile = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { scheduleAll } = useSchedulePrayerNotifications();
 
   const updateProfile = useMutation({
     mutationFn: (update: ProfileUpdate) => {
@@ -25,10 +27,12 @@ export const useUpdateProfile = () => {
       if (!user) throw new Error('Auth required');
       return profileService.savePrayerSettings(user.id, settings);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['prayer_settings', user?.id] });
       // Invalidate prayer time caches as settings changed
-      queryClient.invalidateQueries({ queryKey: ['todayPrayers'] });
+      await queryClient.invalidateQueries({ queryKey: ['todayPrayers'] });
+      // Reschedule notifications with new calculation method
+      await scheduleAll(true);
     },
   });
 
@@ -45,8 +49,10 @@ export const useUpdateProfile = () => {
       if (!user) throw new Error('Auth required');
       return profileService.saveNotificationSettings(user.id, settings);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['notification_settings', user?.id] });
+      // Reschedule notifications with new preferences
+      await scheduleAll(true);
     },
   });
 

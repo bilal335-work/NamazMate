@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useProfileSettings } from '@/features/profile/hooks/useProfileSettings';
 import { supabase } from '@/services/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileSection } from '@/components/profile/ProfileSection';
 import { ProfileRow } from '@/components/profile/ProfileRow';
@@ -11,6 +12,7 @@ import { ProfileRow } from '@/components/profile/ProfileRow';
 export default function ProfileScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const queryClient = useQueryClient();
   const { profile, location, prayerSettings, notificationSettings, activePair, isLoading } = useProfileSettings();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -30,6 +32,7 @@ export default function ProfileScreen() {
             if (error) {
               Alert.alert('Error', 'Could not sign out. Please try again.');
             } else {
+              queryClient.clear();
               router.replace('/(auth)/welcome');
             }
           }
@@ -65,10 +68,7 @@ export default function ProfileScreen() {
         <ProfileHeader 
           fullName={profile?.full_name || 'User'} 
           email={session?.user?.email || ''} 
-          onEditAvatar={() => {
-            // TODO: implement avatar picker modal/sheet
-            Alert.alert('Change Avatar', 'Custom avatars will be supported in a future update.');
-          }}
+          onEditAvatar={() => router.push('/profile/avatar')}
         />
 
         <ProfileSection title="Account">

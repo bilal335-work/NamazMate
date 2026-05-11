@@ -11,11 +11,13 @@ import { locationService, City } from '@/services/location/location.service';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useLocation } from '@/features/location/hooks/useLocation';
+import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
 
 export default function UpdateLocationScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { scheduleAll } = useSchedulePrayerNotifications();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
 
@@ -43,8 +45,11 @@ export default function UpdateLocationScreen() {
       });
       
       // Invalidate queries to refresh prayer times and location display
-      queryClient.invalidateQueries({ queryKey: ['user_location', user.id] });
-      queryClient.invalidateQueries({ queryKey: ['todayPrayers'] });
+      await queryClient.invalidateQueries({ queryKey: ['user_location', user.id] });
+      await queryClient.invalidateQueries({ queryKey: ['todayPrayers'] });
+      
+      // Reschedule notifications for new location
+      await scheduleAll(true);
       
       Alert.alert('Success', 'Location updated successfully. Prayer times have been refreshed.');
       router.back();
