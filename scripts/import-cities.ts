@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 // Setup environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -11,7 +12,11 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  realtime: {
+    transport: ws as any,
+  },
+});
 
 const BATCH_SIZE = 500;
 
