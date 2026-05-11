@@ -8,27 +8,32 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Get the URL that opened the app
-      const url = await Linking.getInitialURL();
-      
-      if (url) {
-        const { queryParams } = Linking.parse(url);
-        const { access_token, refresh_token } = queryParams as any;
+      try {
+        // Get the URL that opened the app
+        const url = await Linking.getInitialURL();
 
-        if (access_token && refresh_token) {
-          const { error } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          });
-          
-          if (!error) {
-            router.replace('/');
-            return;
+        if (url) {
+          const parsed = Linking.parse(url);
+          const { access_token, refresh_token } = parsed.queryParams || {};
+
+          if (typeof access_token === 'string' && typeof refresh_token === 'string') {
+            const { error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (!error) {
+              router.replace('/');
+              return;
+            }
           }
         }
+      } catch (err) {
+        // Log error if needed or handle it
+        console.error('Auth callback error:', err);
       }
 
-      // If no tokens or error, check if we already have a session
+      // Fallback: check if we already have a session or redirect to sign-in
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         router.replace('/');
@@ -42,3 +47,4 @@ export default function AuthCallback() {
 
   return null;
 }
+

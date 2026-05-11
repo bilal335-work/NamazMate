@@ -51,6 +51,7 @@ function RootLayoutNav() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === 'onboarding';
     const isVerifyEmail = segments.includes('verify-email');
 
     if (!session) {
@@ -65,13 +66,12 @@ function RootLayoutNav() {
       }
     } else if (!onboardingCompleted) {
       // Verified but onboarding not complete
-      // Placeholder: redirect to a tab for now until onboarding is built
-      if (inAuthGroup || isVerifyEmail) {
-        router.replace('/(tabs)');
+      if (!inOnboarding) {
+        router.replace('/onboarding');
       }
     } else {
       // Authenticated, verified, and onboarding complete
-      if (inAuthGroup || isVerifyEmail) {
+      if (inAuthGroup || isVerifyEmail || inOnboarding) {
         router.replace('/(tabs)');
       }
     }
