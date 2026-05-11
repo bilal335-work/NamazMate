@@ -25,6 +25,8 @@ export const AppInput: React.FC<AppInputProps> = ({
         className={`border-b border-[#333333]/20 py-2.5 px-1 text-slate-900 text-base ${
           error ? 'border-red-500' : 'focus:border-[#333333]'
         }`}
+        accessibilityLabel={label || props.placeholder}
+        accessibilityInvalid={!!error}
         {...props}
       />
       {error && (

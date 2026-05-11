@@ -35,6 +35,9 @@ export const DuoHistoryTabs: React.FC<DuoHistoryTabsProps> = ({
               isActive && { backgroundColor: colors.background, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }
             ]}
             onPress={() => onPeriodChange(tab.value)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={`${tab.label} History`}
           >
             <Text 
               style={[

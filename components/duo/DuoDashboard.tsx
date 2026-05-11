@@ -93,7 +93,11 @@ export const DuoDashboard: React.FC<DuoDashboardProps> = ({ pair, onRefresh }) =
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Duo Dashboard</Text>
-          <TouchableOpacity onPress={handleRemovePartner}>
+          <TouchableOpacity 
+            onPress={handleRemovePartner}
+            accessibilityRole="button"
+            accessibilityLabel="Remove Partner"
+          >
             <UserX size={24} color={colors.text + '40'} />
           </TouchableOpacity>
         </View>

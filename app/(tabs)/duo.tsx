@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, RefreshControl, Share, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, RefreshControl, Share, Alert, ActivityIndicator } from 'react-native';
 import { Copy, Share2, Plus, ArrowRight } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 
@@ -66,8 +66,8 @@ export default function DuoScreen() {
 
   if (loadingPair || loadingInvites) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
-        <Text style={{ color: colors.text }}>Loading...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

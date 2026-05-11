@@ -90,13 +90,6 @@ export default function SignInScreen() {
 
             <View style={{ height: 10 }} />
             
-            <View style={styles.forgotPasswordContainer}>
-              <AppButton
-                title="Forgot Password?"
-                onPress={() => {}} // TODO: Implement forgot password later
-                variant="link"
-              />
-            </View>
 
             <View style={{ height: 30 }} />
 

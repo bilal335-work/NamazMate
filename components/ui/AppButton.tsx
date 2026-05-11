@@ -56,6 +56,9 @@ export const AppButton: React.FC<AppButtonProps> = ({
       disabled={isDisabled}
       style={style}
       className={`${actualVariant === 'link' ? variantStyles.link : baseStyles + ' ' + variantStyles[actualVariant as keyof typeof variantStyles]} ${isDisabled ? 'opacity-50' : ''} ${className}`}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      accessibilityLabel={title}
     >
       {loading ? (
         <ActivityIndicator color={actualVariant === 'solid' ? '#f4f1ea' : '#333333'} />

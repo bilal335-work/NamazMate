@@ -31,6 +31,8 @@ export const ProfileRow: React.FC<ProfileRowProps> = ({
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={value ? `${label}, ${value}` : label}
     >
       <View style={styles.content}>
         <Text style={[

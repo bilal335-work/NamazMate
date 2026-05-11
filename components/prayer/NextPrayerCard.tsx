@@ -83,7 +83,6 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '800',
     marginVertical: 10,
-    fontFamily: 'Outfit_Bold', // Assuming Outfit is available as per opening animation
   },
   countdownContainer: {
     flexDirection: 'row',
