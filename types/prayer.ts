@@ -35,3 +35,22 @@ export interface PrayerTimeCache {
   asr_method: string;
   aladhan_school_id: number;
 }
+
+export interface PrayerLog {
+  id: string;
+  user_id: string;
+  prayer_date: string;
+  fajr_status: PrayerStatus;
+  dhuhr_status: PrayerStatus;
+  asr_status: PrayerStatus;
+  maghrib_status: PrayerStatus;
+  isha_status: PrayerStatus;
+  fajr_marked_at?: string | null;
+  dhuhr_marked_at?: string | null;
+  asr_marked_at?: string | null;
+  maghrib_marked_at?: string | null;
+  isha_marked_at?: string | null;
+  daily_score: number;
+  created_at: string;
+  updated_at: string;
+}
