@@ -26,7 +26,6 @@ export const AppInput: React.FC<AppInputProps> = ({
           error ? 'border-red-500' : 'focus:border-[#333333]'
         }`}
         accessibilityLabel={label || props.placeholder}
-        accessibilityInvalid={!!error}
         {...props}
       />
       {error && (
