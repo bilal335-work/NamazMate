@@ -42,5 +42,34 @@ export const locationService = {
     }
 
     return data;
+  },
+
+  async resolveLocation(latitude: number, longitude: number): Promise<Partial<City> | null> {
+    try {
+      // Using Nominatim for free reverse geocoding (OpenStreetMap)
+      // Note: In production, consider moving this to an Edge Function
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'NamazMate-App',
+          },
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (!data || !data.address) return null;
+
+      return {
+        city: data.address.city || data.address.town || data.address.village || data.address.suburb || '',
+        region: data.address.state || data.address.county || '',
+        country: data.address.country || '',
+        country_code: data.address.country_code?.toUpperCase() || '',
+      };
+    } catch (error) {
+      console.error('Error resolving location:', error);
+      return null;
+    }
   }
 };

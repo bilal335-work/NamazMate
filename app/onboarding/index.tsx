@@ -32,10 +32,10 @@ export default function GenderStep() {
         // Save to DB immediately to persist progress
         await profileService.updateProfile(user.id, { 
           gender: data.gender,
-          onboarding_step: 'location'
+          onboarding_step: 'avatar'
         });
         setGender(data);
-        router.push('/onboarding/location');
+        router.push('/onboarding/avatar');
       }
     } catch (error) {
       console.error('Error saving gender:', error);

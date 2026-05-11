@@ -4,6 +4,7 @@ export default function OnboardingLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="avatar" />
       <Stack.Screen name="location" />
       <Stack.Screen name="prayer-settings" />
       <Stack.Screen name="notifications" />

@@ -6,6 +6,13 @@ export const genderSchema = z.object({
 
 export type GenderFormData = z.infer<typeof genderSchema>;
 
+export const avatarSchema = z.object({
+  avatarType: z.enum(['default_vector', 'custom_upload']),
+  avatarStyle: z.string(),
+});
+
+export type AvatarFormData = z.infer<typeof avatarSchema>;
+
 export const prayerSettingsSchema = z.object({
   calculationMethod: z.string().min(1, 'Please select a calculation method'),
   asrMethod: z.enum(['standard', 'hanafi']),

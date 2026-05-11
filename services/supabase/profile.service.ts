@@ -3,6 +3,9 @@ import { supabase } from './client';
 export interface ProfileUpdate {
   full_name?: string;
   gender?: string;
+  avatar_type?: 'default_vector' | 'custom_upload';
+  avatar_style?: string;
+  avatar_key?: string;
   avatar_url?: string;
   onboarding_completed?: boolean;
   onboarding_step?: string | null;
@@ -37,11 +40,31 @@ export const profileService = {
     asr_method: 'STANDARD' | 'HANAFI';
     time_format: '12h' | '24h';
   }) {
+    // Aladhan API Method IDs
+    const methodIds: Record<string, number> = {
+      'KARACHI': 1,
+      'ISNA': 2,
+      'MWL': 3,
+      'UMM_AL_QURA': 4,
+      'EGYPTIAN': 5,
+      'AUTO': 7,
+      'DUBAI': 16,
+      'QATAR': 10,
+      'KUWAIT': 9,
+    };
+
+    const aladhan_method_id = methodIds[settings.calculation_method] || 1;
+    const aladhan_school_id = settings.asr_method === 'HANAFI' ? 1 : 0;
+
     const { data, error } = await supabase
       .from('prayer_settings')
       .upsert({
         user_id: userId,
-        ...settings,
+        calculation_method: settings.calculation_method,
+        aladhan_method_id,
+        asr_method: settings.asr_method,
+        aladhan_school_id,
+        time_format: settings.time_format,
         updated_at: new Date().toISOString(),
       })
       .select()
@@ -87,7 +110,6 @@ export const profileService = {
       .upsert({
         user_id: userId,
         ...location,
-        is_active: true,
         updated_at: new Date().toISOString(),
       })
       .select()

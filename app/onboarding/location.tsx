@@ -40,29 +40,50 @@ export default function LocationStep() {
         return;
       }
 
-      await Location.getCurrentPositionAsync({});
-      // Note: In a real app, we'd use a free reverse geocoding API or Edge Function here.
-      // For MVP and given the rules, we'll try to find the nearest city from our DB or 
-      // just use the coordinates and a placeholder city name if needed, but the spec says
-      // "Resolve location" via Edge Function.
+      const pos = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = pos.coords;
       
-      // Since I shouldn't build Edge Functions unless required, I'll check if I can 
-      // just save the lat/lng and let the Home screen handle resolution, 
-      // but onboarding needs a confirmed city.
+      const resolved = await locationService.resolveLocation(latitude, longitude);
       
-      // I'll simulate a resolution or just use the location choice.
-      // Actually, I'll just use a placeholder for now and suggest the user choose city 
-      // if I can't resolve it without an API.
-      
-      // Wait, API_ENDPOINTS.md says resolve-location Edge Function is required.
-      // I'll stick to City Selector for now to be safe, as GPS resolution needs an API/Function.
-      
-      Alert.alert('GPS Feature', 'GPS resolution is being optimized. Please select your city manually for now.');
-      setLoading(false);
-      setShowSearch(true);
+      if (resolved && resolved.city) {
+        const locationData = {
+          latitude,
+          longitude,
+          city: resolved.city,
+          region: resolved.region || undefined,
+          country: resolved.country || '',
+          countryCode: resolved.country_code || '',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          locationSource: 'gps' as const,
+        };
 
+        if (user) {
+          await profileService.saveLocation(user.id, {
+            latitude,
+            longitude,
+            city: resolved.city,
+            region: resolved.region || undefined,
+            country: resolved.country || '',
+            country_code: resolved.country_code || '',
+            timezone: locationData.timezone,
+            location_source: 'gps',
+          });
+
+          await profileService.updateProfile(user.id, {
+            onboarding_step: 'prayer_settings'
+          });
+
+          setLocation(locationData);
+          router.push('/onboarding/prayer-settings');
+        }
+      } else {
+        Alert.alert('Location Not Found', 'We could not determine your city from GPS. Please select it manually.');
+        setShowSearch(true);
+      }
+      setLoading(false);
     } catch (error) {
       console.error('Error using GPS:', error);
+      Alert.alert('Error', 'An error occurred while getting your location.');
       setLoading(false);
     }
   };
