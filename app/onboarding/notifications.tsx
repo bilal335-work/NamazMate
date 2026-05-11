@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, Alert } from 'react-native';
+import React from 'react';
+import { StyleSheet, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
+
 import { Bell } from 'lucide-react-native';
 
 import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
