@@ -39,10 +39,6 @@ coverage/
 supabase/.branches/
 supabase/.temp/
 
-# City datasets
-data/cities/*.txt
-data/cities/*.json
-
 .gemini
 
 .agents
@@ -51,3 +47,7 @@ data/cities/*.json
 
 expo-env.d.ts
 # @end expo-cli
+
+data/cities/*.txt
+data/cities/*.json
+data/cities/*.zip
