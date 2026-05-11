@@ -1,6 +1,7 @@
+import { createClient } from '@supabase/supabase-js';
+import "dotenv/config";
 import * as fs from 'fs';
 import * as path from 'path';
-import { createClient } from '@supabase/supabase-js';
 import ws from 'ws';
 
 // Setup environment variables
@@ -44,7 +45,7 @@ async function main() {
   }
 
   console.log(`Found dataset file: ${datasetFile}`);
-  
+
   const filePath = path.join(dataDir, datasetFile);
   let rawData: CityData[] = [];
 
@@ -57,8 +58,8 @@ async function main() {
   }
 
   // Validate data
-  const validData: CityData[] = rawData.filter(item => 
-    item.city && item.country && item.country_code && 
+  const validData: CityData[] = rawData.filter(item =>
+    item.city && item.country && item.country_code &&
     typeof item.latitude === 'number' && typeof item.longitude === 'number' && item.timezone
   );
 
@@ -73,7 +74,7 @@ async function main() {
 
   for (let i = 0; i < validData.length; i += BATCH_SIZE) {
     const batch = validData.slice(i, i + BATCH_SIZE);
-    
+
     const { error } = await supabase
       .from('cities')
       .upsert(batch, { onConflict: 'country_code,region,city,latitude,longitude', ignoreDuplicates: true });
