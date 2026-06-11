@@ -50,3 +50,11 @@ expo-env.d.ts
 data/cities/*.txt
 data/cities/*.json
 data/cities/*.zip
+
+# Firebase
+firebase-service-account*.json
+*-service-account.json
+*firebase-adminsdk*.json
+
+# Agent Context System
+.agent/
