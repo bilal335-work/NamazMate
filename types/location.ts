@@ -1,17 +1,9 @@
-export interface LocationData {
-  country: string;
-  region?: string;
+export interface City {
+  id: string;
   city: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-}
-
-export interface CityData {
-  id: number;
-  name: string;
+  region: string | null;
   country: string;
-  admin1?: string;
+  country_code: string;
   latitude: number;
   longitude: number;
   timezone: string;

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { locationService, City } from '@/services/location/location.service';
+import { locationService } from '@/services/location/location.service';
 
 export const useLocation = () => {
   const [countryCode, setCountryCode] = useState<string | null>(null);

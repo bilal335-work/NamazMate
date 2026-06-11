@@ -1,15 +1,5 @@
 import { supabase } from '../supabase/client';
-
-export interface City {
-  id: string;
-  city: string;
-  region: string | null;
-  country: string;
-  country_code: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-}
+import { City } from '@/types/location';
 
 export const locationService = {
   async getCountries(): Promise<{ country: string, country_code: string }[]> {
@@ -108,6 +98,34 @@ export const locationService = {
       return data.data;
     } catch (error) {
       console.error('Error resolving location:', error);
+      return null;
+    }
+  },
+
+  async findNearestCity(
+    latitude: number, 
+    longitude: number, 
+    maxDistanceKm: number = 100,
+    hintCountryCode?: string,
+    hintCityName?: string
+  ): Promise<City | null> {
+    try {
+      const { data, error } = await supabase.rpc('find_nearest_city', {
+        input_lat: latitude,
+        input_lng: longitude,
+        max_distance_km: maxDistanceKm,
+        hint_country_code: hintCountryCode || null,
+        hint_city_name: hintCityName || null
+      });
+
+      if (error) {
+        console.error('Error finding nearest city:', error);
+        return null;
+      }
+
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Error in findNearestCity:', error);
       return null;
     }
   },
