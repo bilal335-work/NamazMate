@@ -6,9 +6,7 @@ export const prayerService = {
     const { data, error } = await supabase.functions.invoke('get-today-prayers');
 
     if (error || !data?.success) {
-      // Suppress console.error if it's an expected Missing Setup or Unauthenticated state
-      // FunctionsHttpError usually has status, or error.message can tell us.
-      // We will just log a debug message or nothing to prevent console spam.
+      console.warn('[PrayerService] getTodayPrayers failed:', error || data?.error);
       return null;
     }
 
@@ -17,11 +15,11 @@ export const prayerService = {
 
   async getMonthPrayers(month: number, year: number) {
     const { data, error } = await supabase.functions.invoke('get-month-prayers', {
-      body: { month, year },
+      body: { month, year }
     });
 
-    if (error || !data.success) {
-      console.error('Error fetching month prayers:', error || data?.error);
+    if (error || !data?.success) {
+      console.error('[PrayerService] getMonthPrayers failed:', error || data?.error, { month, year });
       return null;
     }
 
