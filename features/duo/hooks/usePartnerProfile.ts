@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { duoService } from '@/services/duo/duo.service';
+import { duoService } from '@/features/duo/services/duo.service';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 export function usePartnerProfile(partnerId?: string) {

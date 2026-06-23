@@ -22,20 +22,36 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
 
-  if (type === 'custom_upload' && url) {
+  // If we have a URL (direct or derived from key), use it
+  const avatarUrl = url || (type === 'default_vector' && style ? 
+    `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${style}` : null);
+
+  if (avatarUrl) {
     return (
-      <Image 
-        source={{ uri: url }} 
+      <View 
         style={[
-          styles.avatar, 
-          { width: size, height: size, borderRadius: size / 2 },
+          styles.container, 
+          { 
+            width: size, 
+            height: size, 
+            borderRadius: size / 2,
+            backgroundColor: colors.text + '10'
+          },
           containerStyle
-        ]} 
-      />
+        ]}
+      >
+        <Image 
+          source={{ uri: avatarUrl }} 
+          style={[
+            styles.avatar, 
+            { width: size, height: size, borderRadius: size / 2 }
+          ]} 
+        />
+      </View>
     );
   }
 
-  // Default vector avatar
+  // Fallback to vector icon
   return (
     <View 
       style={[

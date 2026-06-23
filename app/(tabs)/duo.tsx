@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, RefreshControl, Share, Alert, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Copy, Share2, Plus, ArrowRight } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 
@@ -18,6 +19,7 @@ import { DuoDashboard } from '@/components/duo/DuoDashboard';
 export default function DuoScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const insets = useSafeAreaInsets();
   
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   
@@ -81,7 +83,7 @@ export default function DuoScreen() {
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
       refreshControl={
         <RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={colors.primary} />
       }
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingTop: 60,
+    paddingBottom: 100,
   },
   header: {
     marginBottom: 32,

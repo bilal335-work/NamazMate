@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { notificationService } from '@/services/notifications/notification.service';
-import { profileService } from '@/services/supabase/profile.service';
+import { notificationService } from '@/features/notifications/services/notification.service';
+import { profileService } from '@/features/profile/services/profile.service';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 export const useNotificationPermission = () => {

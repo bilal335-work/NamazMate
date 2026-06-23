@@ -1,4 +1,4 @@
-const charcoal = '#333333';
+const charcoal = '#0f172a';
 const cream = '#f4f1ea';
 
 export default {
@@ -6,16 +6,18 @@ export default {
     text: charcoal,
     background: cream,
     tint: charcoal,
-    tabIconDefault: '#ccc',
+    tabIconDefault: '#cbd5e1',
     tabIconSelected: charcoal,
     primary: charcoal,
+    card: '#ffffff',
   },
   dark: {
     text: cream,
-    background: '#1a1a1a',
+    background: '#0f172a',
     tint: cream,
-    tabIconDefault: '#ccc',
+    tabIconDefault: '#334155',
     tabIconSelected: cream,
     primary: cream,
+    card: '#1e293b',
   },
 };

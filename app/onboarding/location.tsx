@@ -1,104 +1,108 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Modal, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, Modal, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
-import { MapPin, Search, X, Check } from 'lucide-react-native';
+import { MapPin, Search, X, Check, ArrowRight } from 'lucide-react-native';
 
-import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
-import { LocationOptionCard } from '@/features/onboarding/components/LocationOptionCard';
+import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout';
+import { LocationOptionCard } from '@/components/onboarding/LocationOptionCard';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppCard } from '@/components/ui/AppCard';
 import { useOnboardingStore } from '@/features/onboarding/store/useOnboardingStore';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { profileService } from '@/services/supabase/profile.service';
-import { locationService, City } from '@/services/location/location.service';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { locationService, City } from '@/features/location/services/location.service';
 import { useLocation } from '@/features/location/hooks/useLocation';
+import { useSaveLocation } from '@/features/location/hooks/useSaveLocation';
+import { AppModal } from '@/components/ui/AppModal';
 
 export default function LocationStep() {
   const router = useRouter();
-  const { user } = useAuth();
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  const { loading, saveCurrentLocation, saveCityLocation } = useSaveLocation();
 
-  const [loading, setLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [cities, setCities] = useState<City[]>([]);
   const [searching, setSearching] = useState(false);
   
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
+  const [onModalConfirm, setOnModalConfirm] = useState<(() => void) | undefined>(undefined);
+  const [modalConfirmLabel, setModalConfirmLabel] = useState('Confirm');
+  const [modalSecondaryLabel, setModalSecondaryLabel] = useState('');
+  const [onModalSecondary, setOnModalSecondary] = useState<(() => void) | undefined>(undefined);
+  const [savingLocationId, setSavingLocationId] = useState<string | null>(null);
+  const [isChanging, setIsChanging] = useState(false);
+  
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const setLocation = useOnboardingStore((state) => state.setLocation);
   const currentLocation = useOnboardingStore((state) => state.location);
 
   const { 
-    countryCode, setCountryCode, 
-    region, setRegion, 
-    countries, regions, cities: regionCities,
-    isLoadingCountries, isLoadingRegions, isLoadingCities,
     isCityDataAvailable, isLoadingAvailability
   } = useLocation();
-
-  const [selectionMode, setSelectionMode] = useState<'search' | 'hierarchical'>('search');
-
   const handleUseGPS = async () => {
-    setLoading(true);
+    if (loading) return;
+    setStatusMessage('Finding your location...');
+
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to use GPS. You can choose a city manually.');
-        setLoading(false);
+      setStatusMessage('Matching nearby city...');
+      const { location } = await saveCurrentLocation({
+        onboardingStep: 'prayer_settings',
+        useNearestCityCoordinates: true,
+      });
+
+      setStatusMessage(`Found ${location.city}`);
+      setLocation(location);
+      setIsChanging(false);
+    } catch (error) {
+      console.error('[Location] GPS Flow Error:', error);
+      setStatusMessage(null);
+
+      if (error instanceof Error && error.message === 'LOCATION_PERMISSION_DENIED') {
+        setModalTitle('Location access not enabled');
+        setModalMessage('Location access is not enabled. You can allow it in settings or choose your city manually.');
+        setModalConfirmLabel('Open Settings');
+        setOnModalConfirm(() => () => {
+          setModalVisible(false);
+          Linking.openSettings();
+        });
+        setModalSecondaryLabel('Choose City');
+        setOnModalSecondary(() => () => {
+          setModalVisible(false);
+          setShowSearch(true);
+        });
+        setModalVisible(true);
         return;
       }
 
-      const pos = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = pos.coords;
-      
-      const resolved = await locationService.resolveLocation(latitude, longitude);
-      
-      if (resolved && resolved.city) {
-        const locationData = {
-          latitude,
-          longitude,
-          city: resolved.city,
-          region: resolved.region || undefined,
-          country: resolved.country || '',
-          countryCode: resolved.country_code || '',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          locationSource: 'gps' as const,
-        };
-
-        if (user) {
-          await profileService.saveLocation(user.id, {
-            latitude,
-            longitude,
-            city: resolved.city,
-            region: resolved.region || undefined,
-            country: resolved.country || '',
-            country_code: resolved.country_code || '',
-            timezone: locationData.timezone,
-            location_source: 'gps',
-          });
-
-          await profileService.updateProfile(user.id, {
-            onboarding_step: 'prayer_settings'
-          });
-
-          setLocation(locationData);
-          router.push('/onboarding/prayer-settings');
-        }
-      } else {
-        Alert.alert('Location Not Found', 'We could not determine your city from GPS. Please select it manually.');
-        setShowSearch(true);
+      if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
+        setModalTitle('We couldn’t find your location');
+        setModalMessage('We found your coordinates, but couldn’t match them to a city in our prayer database. Please choose your city manually.');
+        setModalConfirmLabel('Choose City');
+        setOnModalConfirm(() => () => {
+          setModalVisible(false);
+          setShowSearch(true);
+        });
+        setModalSecondaryLabel('Try again');
+        setOnModalSecondary(() => () => {
+          setModalVisible(false);
+          handleUseGPS();
+        });
+        setModalVisible(true);
+        return;
       }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error using GPS:', error);
-      Alert.alert('Error', 'An error occurred while getting your location.');
-      setLoading(false);
+
+      setModalTitle('Location Error');
+      setModalMessage('An error occurred while accessing your location. Please try selecting your city manually.');
+      setModalConfirmLabel('Choose City');
+      setOnModalConfirm(() => () => {
+        setModalVisible(false);
+        setShowSearch(true);
+      });
+      setModalVisible(true);
+    } finally {
+      setStatusMessage(null);
     }
   };
-
   const handleSearch = async (text: string) => {
     setSearchQuery(text);
     if (text.length >= 2) {
@@ -112,77 +116,98 @@ export default function LocationStep() {
   };
 
   const handleSelectCity = async (city: City) => {
+    if (savingLocationId) return;
+    setSavingLocationId(city.id);
+
     try {
-      if (user) {
-        const locationData = {
-          latitude: city.latitude,
-          longitude: city.longitude,
-          city: city.city,
-          region: city.region || undefined,
-          country: city.country,
-          countryCode: city.country_code,
-          timezone: city.timezone,
-          locationSource: 'city_selector' as const,
-        };
+      const locationData = await saveCityLocation(city, {
+        onboardingStep: 'prayer_settings',
+      });
 
-        await profileService.saveLocation(user.id, {
-          latitude: city.latitude,
-          longitude: city.longitude,
-          city: city.city,
-          region: city.region || undefined,
-          country: city.country,
-          country_code: city.country_code,
-          timezone: city.timezone,
-          location_source: 'city_selector',
-        });
-        
-        await profileService.updateProfile(user.id, {
-          onboarding_step: 'prayer_settings'
-        });
-
-        setLocation(locationData);
-        setShowSearch(false);
-        router.push('/onboarding/prayer-settings');
-      }
+      setLocation(locationData);
+      setShowSearch(false);
+      setIsChanging(false);
+      router.push('/onboarding/prayer-settings');
     } catch (error) {
-      console.error('Error saving location:', error);
-      Alert.alert('Error', 'Could not save location. Please try again.');
+      console.error('[Location] Save Error:', error);
+      setModalTitle('We couldn’t save your location');
+      setModalMessage('Please try again, or choose another city.');
+      setModalConfirmLabel('Try Again');
+      setOnModalConfirm(() => () => {
+        setModalVisible(false);
+        handleSelectCity(city);
+      });
+      setModalSecondaryLabel('Choose another');
+      setOnModalSecondary(() => () => {
+        setModalVisible(false);
+      });
+      setModalVisible(true);
+    } finally {
+      setSavingLocationId(null);
     }
   };
-
   return (
     <OnboardingLayout
       title="Set your location"
-      subtitle="Choose how you’d like to set your location for accurate prayer times."
+      subtitle="Choose how youâ€™d like to set your location for accurate prayer times."
     >
       <View style={styles.content}>
-        <LocationOptionCard 
-          label="Use current location"
-          description="Best for accuracy while traveling"
-          icon={MapPin}
-          onSelect={handleUseGPS}
-          loading={loading}
-        />
-        <LocationOptionCard 
-          label="Choose city manually"
-          description="Search from thousands of cities"
-          icon={Search}
-          onSelect={() => setShowSearch(true)}
-        />
+        {(!currentLocation || isChanging) ? (
+          <>
+            <Text style={styles.label}>Location method</Text>
+            
+            <LocationOptionCard 
+              label={statusMessage || "Use Current Location"}
+              description={statusMessage ? "Please wait..." : "Set prayer times using your device location."}
+              icon={MapPin}
+              onSelect={handleUseGPS}
+              loading={loading}
+              disabled={loading || !!savingLocationId}
+            />
+            <LocationOptionCard 
+              label="Choose City"
+              description="Select your country, region, and city manually."
+              icon={Search}
+              onSelect={() => setShowSearch(true)}
+              loading={!!savingLocationId}
+              disabled={loading || !!savingLocationId}
+            />
 
-        {currentLocation && (
+            {currentLocation && !loading && (
+              <TouchableOpacity 
+                onPress={() => setIsChanging(false)}
+                style={styles.cancelChange}
+              >
+                <Text style={styles.cancelChangeText}>Keep current location</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
           <AppCard variant="solid" style={styles.currentCard}>
             <View style={styles.currentHeader}>
-              <Check size={20} color="#fff" />
-              <Text style={styles.currentTitle}>Selected Location</Text>
+              <View style={styles.activeBadge}>
+                <Check size={12} color="#0f172a" strokeWidth={4} />
+              </View>
+              <Text style={styles.currentTitle}>Active Location</Text>
             </View>
-            <Text style={styles.currentValue}>{currentLocation.city}, {currentLocation.country}</Text>
+            
+            <View style={styles.locationInfoRow}>
+              <Text style={styles.currentValue}>{currentLocation.city}, {currentLocation.country}</Text>
+              <TouchableOpacity onPress={() => setIsChanging(true)} style={styles.changeButton}>
+                <Text style={styles.changeButtonText}>Change</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 32 }} />
+            
             <AppButton 
-              title="Continue" 
+              title="Continue to settings" 
               onPress={() => router.push('/onboarding/prayer-settings')}
               variant="outline"
-              style={{ borderColor: 'rgba(255,255,255,0.3)', marginTop: 12 }}
-              textStyle={{ color: '#fff' }}
+              style={styles.continueButton}
+              textStyle={{ color: '#f4f1ea' }}
+              icon={<ArrowRight size={18} color="#f4f1ea" strokeWidth={3} />}
+              iconPosition="right"
             />
           </AppCard>
         )}
@@ -194,161 +219,83 @@ export default function LocationStep() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowSearch(false)}
       >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {selectionMode === 'search' ? 'Search City' : 'Select Location'}
-            </Text>
-            <TouchableOpacity onPress={() => {
-              setShowSearch(false);
-              setCountryCode(null);
-              setRegion(null);
-            }}>
-              <X size={24} color={colors.text} />
+            <Text style={styles.modalTitle}>Search City</Text>
+            <TouchableOpacity onPress={() => setShowSearch(false)} style={styles.closeButton}>
+              <X size={24} color="#0f172a" strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
 
           {!isCityDataAvailable && !isLoadingAvailability ? (
             <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.text, textAlign: 'center', fontWeight: 'bold' }]}>
-                City data has not been imported yet.
-              </Text>
-              <Text style={[styles.emptySubtext, { color: colors.text + '80', textAlign: 'center', marginTop: 8 }]}>
-                Please use &quot;Current Location&quot; or check back later once the administrator has set up the location database.
+              <Text style={styles.emptyTitle}>Database Offline</Text>
+              <Text style={styles.emptySubtext}>
+                City data has not been initialized. Please use current location or contact support.
               </Text>
             </View>
           ) : (
-            <>
-              <View style={styles.tabContainer}>
-                <TouchableOpacity 
-                  style={[styles.tab, selectionMode === 'search' && { borderBottomColor: colors.primary }]}
-                  onPress={() => setSelectionMode('search')}
-                >
-                  <Text style={[styles.tabText, { color: selectionMode === 'search' ? colors.text : colors.text + '50' }]}>Search</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.tab, selectionMode === 'hierarchical' && { borderBottomColor: colors.primary }]}
-                  onPress={() => setSelectionMode('hierarchical')}
-                >
-                  <Text style={[styles.tabText, { color: selectionMode === 'hierarchical' ? colors.text : colors.text + '50' }]}>Browse</Text>
-                </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <View style={styles.searchBar}>
+                <Search size={20} color="#0f172a" strokeWidth={2.5} />
+                <TextInput 
+                  style={styles.searchInput}
+                  placeholder="Enter city name..."
+                  placeholderTextColor="rgba(15, 23, 42, 0.4)"
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                  autoFocus
+                />
+                {searching && <ActivityIndicator size="small" color="#0f172a" />}
               </View>
 
-              {selectionMode === 'search' ? (
-                <>
-                  <View style={[styles.searchBar, { backgroundColor: colors.primary + '10' }]}>
-                    <Search size={20} color={colors.text + '80'} />
-                    <TextInput 
-                      style={[styles.searchInput, { color: colors.text }]}
-                      placeholder="Search city..."
-                      placeholderTextColor={colors.text + '50'}
-                      value={searchQuery}
-                      onChangeText={handleSearch}
-                      autoFocus
-                    />
-                    {searching && <ActivityIndicator size="small" color={colors.primary} />}
+              <FlatList 
+                data={cities}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    style={[styles.cityItem, savingLocationId && { opacity: 0.5 }]}
+                    onPress={() => handleSelectCity(item)}
+                    disabled={!!savingLocationId}
+                  >
+                    <View>
+                      <Text style={styles.cityName}>{item.city}</Text>
+                      <Text style={styles.cityRegion}>
+                        {item.region ? `${item.region}, ` : ''}{item.country}
+                      </Text>
+                    </View>
+                    {savingLocationId === item.id ? (
+                      <ActivityIndicator size="small" color="#0f172a" />
+                    ) : (
+                      <ArrowRight size={18} color="#0f172a" strokeWidth={2.5} />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyContainer}>
+                    {searchQuery.length >= 2 && !searching && (
+                      <Text style={styles.emptyText}>No matches found</Text>
+                    )}
                   </View>
-
-                  <FlatList 
-                    data={cities}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity 
-                        style={styles.cityItem}
-                        onPress={() => handleSelectCity(item)}
-                      >
-                        <Text style={[styles.cityName, { color: colors.text }]}>{item.city}</Text>
-                        <Text style={[styles.cityRegion, { color: colors.text + '80' }]}>
-                          {item.region ? `${item.region}, ` : ''}{item.country}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    ListEmptyComponent={() => (
-                      <View style={styles.emptyContainer}>
-                        <Text style={[styles.emptyText, { color: colors.text + '50' }]}>
-                          {searchQuery.length < 2 ? 'Type at least 2 characters' : 'No cities found'}
-                        </Text>
-                      </View>
-                    )}
-                    ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
-                  />
-                </>
-              ) : (
-                <View style={{ flex: 1 }}>
-                  {!countryCode ? (
-                    <FlatList 
-                      data={countries}
-                      keyExtractor={(item) => item.country_code}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity 
-                          style={styles.cityItem}
-                          onPress={() => setCountryCode(item.country_code)}
-                        >
-                          <Text style={[styles.cityName, { color: colors.text }]}>{item.country}</Text>
-                        </TouchableOpacity>
-                      )}
-                      ListEmptyComponent={() => (
-                        <View style={styles.emptyContainer}>
-                          {isLoadingCountries ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No countries found</Text>}
-                        </View>
-                      )}
-                      ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
-                    />
-                  ) : !region ? (
-                    <View style={{ flex: 1 }}>
-                      <TouchableOpacity onPress={() => setCountryCode(null)} style={styles.backLink}>
-                        <Text style={{ color: colors.primary, fontWeight: 'bold' }}>← Back to Countries</Text>
-                      </TouchableOpacity>
-                      <FlatList 
-                        data={regions}
-                        keyExtractor={(item) => item}
-                        renderItem={({ item }) => (
-                          <TouchableOpacity 
-                            style={styles.cityItem}
-                            onPress={() => setRegion(item)}
-                          >
-                            <Text style={[styles.cityName, { color: colors.text }]}>{item}</Text>
-                          </TouchableOpacity>
-                        )}
-                        ListEmptyComponent={() => (
-                          <View style={styles.emptyContainer}>
-                            {isLoadingRegions ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No regions found</Text>}
-                          </View>
-                        )}
-                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
-                      />
-                    </View>
-                  ) : (
-                    <View style={{ flex: 1 }}>
-                      <TouchableOpacity onPress={() => setRegion(null)} style={styles.backLink}>
-                        <Text style={{ color: colors.primary, fontWeight: 'bold' }}>← Back to Regions</Text>
-                      </TouchableOpacity>
-                      <FlatList 
-                        data={regionCities}
-                        keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                          <TouchableOpacity 
-                            style={styles.cityItem}
-                            onPress={() => handleSelectCity(item)}
-                          >
-                            <Text style={[styles.cityName, { color: colors.text }]}>{item.city}</Text>
-                          </TouchableOpacity>
-                        )}
-                        ListEmptyComponent={() => (
-                          <View style={styles.emptyContainer}>
-                            {isLoadingCities ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: colors.text + '50' }}>No cities found</Text>}
-                          </View>
-                        )}
-                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.text + '10' }]} />}
-                      />
-                    </View>
-                  )}
-                </View>
-              )}
-            </>
+                )}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                contentContainerStyle={{ paddingBottom: 40 }}
+              />
+            </View>
           )}
         </View>
       </Modal>
+
+      <AppModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        title={modalTitle}
+        message={modalMessage}
+        confirmLabel={modalConfirmLabel}
+        onConfirm={onModalConfirm}
+        secondaryLabel={modalSecondaryLabel}
+        onSecondary={onModalSecondary}
+      />
     </OnboardingLayout>
   );
 }
@@ -357,100 +304,173 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  label: {
+    fontFamily: 'SpaceMono',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: 0.5,
+    marginBottom: 24,
+    opacity: 0.6,
+  },
   currentCard: {
-    marginTop: 24,
-    padding: 20,
-    backgroundColor: '#333',
+    marginTop: 40,
+    backgroundColor: '#0f172a',
+    borderWidth: 0,
+    borderRadius: 32,
   },
   currentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    gap: 12,
+  },
+  activeBadge: {
+    width: 20,
+    height: 20,
+    backgroundColor: '#f4f1ea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
   },
   currentTitle: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    color: '#f4f1ea',
+    fontFamily: 'SpaceMono',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    opacity: 0.7,
   },
   currentValue: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: '#f4f1ea',
+    fontFamily: 'TitanOne_400Regular',
+    fontSize: 24,
+    flex: 1,
+  },
+  locationInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  changeButton: {
+    backgroundColor: 'rgba(244, 241, 234, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  changeButtonText: {
+    color: '#f4f1ea',
+    fontFamily: 'SpaceMono',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  cancelChange: {
+    marginTop: 16,
+    alignSelf: 'center',
+    padding: 8,
+  },
+  cancelChangeText: {
+    fontFamily: 'SpaceMono',
+    fontSize: 12,
+    color: '#64748b',
+    textDecorationLine: 'underline',
+  },
+  continueButton: {
+    borderColor: 'rgba(244, 241, 234, 0.3)',
+    borderRadius: 20,
   },
   modalContainer: {
     flex: 1,
     padding: 24,
+    backgroundColor: '#f4f1ea',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 40,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: 'SpaceMono',
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: 1,
+  },
+  closeButton: {
+    padding: 4,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    height: 50,
-    borderRadius: 12,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    height: 60,
+    borderWidth: 2.5,
+    borderColor: '#0f172a',
+    backgroundColor: '#ffffff',
+    marginBottom: 24,
+    borderRadius: 16,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
+    marginLeft: 16,
+    fontFamily: 'SpaceMono',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
   },
   cityItem: {
-    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   cityName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'TitanOne_400Regular',
+    fontSize: 20,
+    fontWeight: '400',
+    color: '#0f172a',
   },
   cityRegion: {
-    fontSize: 14,
+    fontFamily: 'SpaceMono',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a',
+    opacity: 0.6,
     marginTop: 2,
   },
   separator: {
     height: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.1)',
   },
   emptyContainer: {
-    marginTop: 40,
+    marginTop: 64,
     alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 40,
   },
-  emptyText: {
+  emptyTitle: {
+    fontFamily: 'SpaceMono',
     fontSize: 14,
+    fontWeight: '900',
+    color: '#0f172a',
+    textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: 13,
+    fontFamily: 'SpaceMono',
+    fontSize: 12,
+    color: '#0f172a',
+    textAlign: 'center',
+    opacity: 0.5,
     lineHeight: 20,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  backLink: {
-    paddingVertical: 12,
-    marginBottom: 8,
+  emptyText: {
+    fontFamily: 'SpaceMono',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a',
+    opacity: 0.4,
   },
 });

@@ -1,26 +1,47 @@
 import { useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { notificationService } from '@/services/notifications/notification.service';
-import { profileService } from '@/services/supabase/profile.service';
-import { prayerService } from '@/services/prayer/prayer.service';
-import { locationService } from '@/services/location/location.service';
-import { PrayerKey } from '@/types/prayer';
+import { notificationService } from '@/features/notifications/services/notification.service';
+import { profileService } from '@/features/profile/services/profile.service';
+import { prayerService } from '@/features/prayers/services/prayer.service';
+import { PrayerKey } from '@/features/prayers/types';
+import { supabase } from '@/services/supabase/client';
 
 const LAST_SCHEDULE_KEY = 'namazmate_last_notification_schedule';
+let scheduleAllInFlight: Promise<void> | null = null;
+let scheduleAllCooldownUntil = 0;
+let lastScheduleStartedAt = 0;
+
+const MIN_SCHEDULE_INTERVAL_MS = 10_000;
+const SCHEDULE_COOLDOWN_MS = 60_000;
 
 export const useSchedulePrayerNotifications = () => {
-  const { user, onboardingCompleted } = useAuth();
+  const { session, user, onboardingCompleted } = useAuth();
 
   const scheduleAll = useCallback(async (force = false) => {
-    if (!user || !onboardingCompleted) return;
+    if (!user || (!onboardingCompleted && !force)) return;
+    if (scheduleAllInFlight) return scheduleAllInFlight;
 
-    try {
-      // 1. Fetch settings and location first to check if we need to reschedule
-      const [settings, location] = await Promise.all([
-        profileService.getNotificationSettings(user.id),
-        locationService.getUserLocation(user.id)
-      ]);
+    const now = Date.now();
+    if (!force) {
+      if (now < scheduleAllCooldownUntil) return;
+      if (now < lastScheduleStartedAt + MIN_SCHEDULE_INTERVAL_MS) return;
+    }
+
+    lastScheduleStartedAt = now;
+
+    scheduleAllInFlight = (async () => {
+      const { data: { session: activeSession } } = await supabase.auth.getSession();
+      if (!activeSession?.access_token) {
+        if (__DEV__) {
+          console.warn('[Notifications] Scheduling skipped: auth session not ready.');
+        }
+        return;
+      }
+
+      // 1. Fetch settings and location sequentially to prevent parallel token refreshes
+      const settings = await profileService.getNotificationSettings(user.id);
+      const location = await profileService.getLocation(user.id);
 
       if (!settings || !location) return;
 
@@ -145,10 +166,29 @@ export const useSchedulePrayerNotifications = () => {
 
       // 7. Store hash to prevent redundant scheduling
       await SecureStore.setItemAsync(LAST_SCHEDULE_KEY, settingsHash);
-    } catch (e) {
-      console.error('Error in scheduleAll:', e);
-    }
-  }, [user]);
+      scheduleAllCooldownUntil = Date.now() + SCHEDULE_COOLDOWN_MS;
+    })().catch((e: any) => {
+      const isNoSession = e?.message?.includes('No authenticated Supabase session') || String(e).includes('No authenticated Supabase session');
+      const isRateLimit = e?.message?.includes('rate limit') || e?.status === 429 || String(e).includes('rate limit');
+      
+      if (isNoSession) {
+        if (__DEV__) {
+          console.warn('[Notifications] Scheduling skipped: auth session not ready.');
+        }
+        return;
+      } else if (isRateLimit) {
+        scheduleAllCooldownUntil = Date.now() + 60_000;
+        console.warn('[Notifications] Scheduling skipped: auth rate limit. Will try later.');
+      } else {
+        scheduleAllCooldownUntil = Date.now() + 30_000;
+        console.error('Error in scheduleAll:', e);
+      }
+    }).finally(() => {
+      scheduleAllInFlight = null;
+    });
+
+    return scheduleAllInFlight;
+  }, [session, user, onboardingCompleted]);
 
   return { scheduleAll };
 };

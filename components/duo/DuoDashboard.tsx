@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { UserX, AlertTriangle } from 'lucide-react-native';
 
@@ -17,8 +18,8 @@ import { DuoPrayerComparisonRow } from './DuoPrayerComparisonRow';
 import { SendReminderSheet } from './SendReminderSheet';
 import { DuoHistoryTabs } from './DuoHistoryTabs';
 import { DuoHistorySummary } from './DuoHistorySummary';
-import { Pair } from '@/types/duo';
-import { PrayerLog, PrayerKey } from '@/types/prayer';
+import { Pair } from '@/features/duo/types';
+import { PrayerLog, PrayerKey } from '@/features/prayers/types';
 
 interface DuoDashboardProps {
   pair: Pair;
@@ -29,6 +30,7 @@ export const DuoDashboard: React.FC<DuoDashboardProps> = ({ pair, onRefresh }) =
   const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const insets = useSafeAreaInsets();
   const today = new Date().toISOString().split('T')[0];
 
   const partnerId = pair.user_a_id === user?.id ? pair.user_b_id : pair.user_a_id;
@@ -86,7 +88,7 @@ export const DuoDashboard: React.FC<DuoDashboardProps> = ({ pair, onRefresh }) =
     <View style={styles.flex}>
       <ScrollView 
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
         refreshControl={
           <RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={colors.primary} />
         }
@@ -185,7 +187,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingTop: 60,
     paddingBottom: 100,
   },
   header: {

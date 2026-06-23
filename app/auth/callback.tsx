@@ -1,49 +1,47 @@
 import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/services/supabase/client';
-import * as Linking from 'expo-linking';
 
 export default function AuthCallback() {
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get the URL that opened the app
-        const url = await Linking.getInitialURL();
+        const { access_token, refresh_token, type } = params;
 
-        if (url) {
-          const parsed = Linking.parse(url);
-          const { access_token, refresh_token } = parsed.queryParams || {};
+        if (typeof access_token === 'string' && typeof refresh_token === 'string') {
+          const { error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
 
-          if (typeof access_token === 'string' && typeof refresh_token === 'string') {
-            const { error } = await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-
-            if (!error) {
+          if (!error) {
+            if (type === 'recovery') {
+              router.replace('/(auth)/reset-password');
+            } else {
               router.replace('/');
-              return;
             }
+            return;
           }
         }
+        
+        // Check if we already have a session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          router.replace('/');
+        } else {
+          router.replace('/(auth)/sign-in');
+        }
       } catch (err) {
-        // Log error if needed or handle it
         console.error('Auth callback error:', err);
-      }
-
-      // Fallback: check if we already have a session or redirect to sign-in
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.replace('/');
-      } else {
         router.replace('/(auth)/sign-in');
       }
     };
 
     handleCallback();
-  }, [router]);
+  }, [params, router]);
 
   return null;
 }

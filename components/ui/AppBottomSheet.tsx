@@ -1,16 +1,29 @@
-import React, { useMemo, forwardRef } from 'react';
-import { Text } from 'react-native';
+import React, { useMemo, forwardRef, useCallback } from 'react';
+import { Text, StyleSheet, View } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 
 interface AppBottomSheetProps {
   title?: string;
   children: React.ReactNode;
   snapPoints?: string[];
+  onClose?: () => void;
 }
 
 export const AppBottomSheet = forwardRef<BottomSheet, AppBottomSheetProps>(
-  ({ title, children, snapPoints = ['25%', '50%'] }, ref) => {
+  ({ title, children, snapPoints = ['25%', '50%'], onClose }, ref) => {
     const memoSnapPoints = useMemo(() => snapPoints, [snapPoints]);
+
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.6}
+        />
+      ),
+      []
+    );
 
     return (
       <BottomSheet
@@ -18,28 +31,49 @@ export const AppBottomSheet = forwardRef<BottomSheet, AppBottomSheetProps>(
         index={-1}
         snapPoints={memoSnapPoints}
         enablePanDownToClose
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-            opacity={0.5}
-          />
-        )}
-        backgroundStyle={{ backgroundColor: '#f4f1ea', borderRadius: 32 }}
-        handleIndicatorStyle={{ backgroundColor: '#333333', width: 40 }}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.background}
+        handleIndicatorStyle={styles.indicator}
+        onClose={onClose}
       >
-        <BottomSheetView className="p-6 space-y-4">
+        <BottomSheetView style={styles.content}>
           {title && (
-            <Text className="text-xl font-bold text-[#333333] tracking-tight mb-2">
+            <Text style={styles.title}>
               {title}
             </Text>
           )}
-          {children}
+          <View style={styles.childrenContainer}>
+            {children}
+          </View>
         </BottomSheetView>
       </BottomSheet>
     );
   }
 );
+
+const styles = StyleSheet.create({
+  background: {
+    backgroundColor: '#f4f1ea',
+    borderRadius: 32,
+  },
+  indicator: {
+    backgroundColor: '#333333',
+    width: 40,
+    opacity: 0.2,
+  },
+  content: {
+    padding: 32,
+    paddingTop: 16,
+  },
+  title: {
+    fontFamily: 'TitanOne_400Regular',
+    fontSize: 20,
+    color: '#333333',
+    marginBottom: 24,
+  },
+  childrenContainer: {
+    gap: 12,
+  },
+});
 
 AppBottomSheet.displayName = 'AppBottomSheet';

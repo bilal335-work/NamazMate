@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import React from 'react';
-import { PrayerStatus } from '../../types/prayer';
+import { PrayerStatus } from '@/features/prayers/types';
 
 interface StatusBadgeProps {
   status: PrayerStatus;

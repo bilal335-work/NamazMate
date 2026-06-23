@@ -1,31 +1,21 @@
 import React from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ArrowRight, Check, Clock, Users, Zap } from 'lucide-react-native';
 
-import { Bell } from 'lucide-react-native';
-
-import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
+import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout';
 import { AppButton } from '@/components/ui/AppButton';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { profileService } from '@/services/supabase/profile.service';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { profileService } from '@/features/profile/services/profile.service';
 import { useNotificationPermission } from '@/features/notifications/hooks/useNotificationPermission';
-import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
 
 export default function NotificationsStep() {
   const router = useRouter();
   const { user } = useAuth();
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
   const { requestPermission, skipNotifications, loading } = useNotificationPermission();
-  const { scheduleAll } = useSchedulePrayerNotifications();
 
   const handleAllow = async () => {
-    const granted = await requestPermission(true);
-    if (granted) {
-      await scheduleAll();
-    }
+    await requestPermission(true);
     
     await profileService.updateProfile(user!.id, {
       onboarding_step: null
@@ -45,69 +35,102 @@ export default function NotificationsStep() {
     <OnboardingLayout
       title="Prayer reminders"
       subtitle="Get helpful reminders for prayer times and Duo activity. You can update this later in Profile."
+      footer={
+        <View style={styles.footer}>
+          <AppButton 
+            title="Allow notifications" 
+            onPress={handleAllow} 
+            loading={loading}
+            icon={<ArrowRight size={20} color="#f4f1ea" strokeWidth={3} />}
+            iconPosition="right"
+            style={{ marginBottom: 12 }}
+          />
+          <AppButton 
+            title="Skip for now" 
+            onPress={handleSkip} 
+            variant="ghost"
+            disabled={loading}
+          />
+        </View>
+      }
     >
-      <View style={styles.content}>
-        <View style={[styles.illustration, { backgroundColor: colors.primary + '05' }]}>
-          <Bell size={80} color={colors.primary} strokeWidth={1.5} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.featureCard}>
+          <Text style={styles.cardTitle}>You can get reminders for</Text>
+          <View style={styles.featureList}>
+            <FeatureItem icon={<Clock size={16} color="#0f172a" />} label="Prayer times" />
+            <FeatureItem icon={<Zap size={16} color="#0f172a" />} label="Before prayer starts" />
+            <FeatureItem icon={<Clock size={16} color="#0f172a" />} label="Same-day Qaza reminders" />
+            <FeatureItem icon={<Users size={16} color="#0f172a" />} label="Duo partner activity" />
+          </View>
         </View>
-        
-        <View style={styles.infoBox}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>Why enable notifications?</Text>
-          <Text style={[styles.infoText, { color: colors.text + '80' }]}>
-            • Be notified precisely at prayer times{'\n'}
-            • Get 10-minute warnings before a prayer ends{'\n'}
-            • Stay connected with your Duo partner{'\n'}
-            • Important announcements and updates
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <AppButton 
-          title="Allow Notifications" 
-          onPress={handleAllow} 
-          loading={loading}
-          style={{ marginBottom: 12 }}
-        />
-        <AppButton 
-          title="Skip for Now" 
-          onPress={handleSkip} 
-          variant="outline"
-          disabled={loading}
-        />
-      </View>
+      </ScrollView>
     </OnboardingLayout>
   );
 }
 
+const FeatureItem = ({ icon, label }: { icon: React.ReactNode, label: string }) => (
+  <View style={styles.featureItem}>
+    <View style={styles.iconBox}>
+      {icon}
+    </View>
+    <Text style={styles.featureLabel}>{label}</Text>
+    <Check size={18} color="#0f172a" strokeWidth={3} opacity={0.6} />
+  </View>
+);
+
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    alignItems: 'center',
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingBottom: 20,
   },
-  illustration: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  infoBox: {
+  featureCard: {
     width: '100%',
-    padding: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(15, 23, 42, 0.05)',
   },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
+  cardTitle: {
+    fontFamily: 'SpaceMono',
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: 1,
+    marginBottom: 20,
+    opacity: 0.5,
+    textTransform: 'uppercase',
   },
-  infoText: {
+  featureList: {
+    gap: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.03)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  featureLabel: {
+    flex: 1,
+    fontFamily: 'SpaceMono',
     fontSize: 14,
-    lineHeight: 22,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   footer: {
+    width: '100%',
     marginTop: 20,
   },
 });

@@ -9,6 +9,7 @@ export type GenderFormData = z.infer<typeof genderSchema>;
 export const avatarSchema = z.object({
   avatarType: z.enum(['default_vector', 'custom_upload']),
   avatarStyle: z.string(),
+  avatarKey: z.string().optional(),
 });
 
 export type AvatarFormData = z.infer<typeof avatarSchema>;

@@ -1,17 +1,17 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mars, Venus, UserCircle2 } from 'lucide-react-native';
+import { Mars, Venus, UserCircle2, ArrowRight } from 'lucide-react-native';
 
-import { OnboardingLayout } from '@/features/onboarding/components/OnboardingLayout';
-import { GenderOptionCard } from '@/features/onboarding/components/GenderOptionCard';
+import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout';
+import { GenderOptionCard } from '@/components/onboarding/GenderOptionCard';
 import { AppButton } from '@/components/ui/AppButton';
 import { genderSchema, GenderFormData } from '@/features/onboarding/schema/onboardingSchema';
 import { useOnboardingStore } from '@/features/onboarding/store/useOnboardingStore';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { profileService } from '@/services/supabase/profile.service';
+import { profileService } from '@/features/profile/services/profile.service';
 
 export default function GenderStep() {
   const router = useRouter();
@@ -25,6 +25,15 @@ export default function GenderStep() {
       gender: currentGender?.gender || undefined,
     },
   });
+
+  // Pre-load avatar images for the next step
+  React.useEffect(() => {
+    const { DEFAULT_AVATARS } = require('@/constants/avatars');
+    DEFAULT_AVATARS.forEach((avatar: any) => {
+      const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${avatar.storagePath}`;
+      require('react-native').Image.prefetch(url);
+    });
+  }, []);
 
   const onSubmit = async (data: GenderFormData) => {
     try {
@@ -44,18 +53,21 @@ export default function GenderStep() {
 
   return (
     <OnboardingLayout
-      title="Tell us about yourself"
-      subtitle="Help us personalize your NamazMate experience. You can update this later in Profile."
+      title="Your Identity"
+      subtitle="Tell us a bit about yourself so we can personalize your experience."
       footer={
         <AppButton 
-          title="Continue" 
+          title="PROCEED TO AVATAR" 
           onPress={handleSubmit(onSubmit)} 
           disabled={!isValid || isSubmitting}
           loading={isSubmitting}
+          icon={<ArrowRight size={20} color="#f4f1ea" strokeWidth={3} />}
+          iconPosition="right"
         />
       }
     >
       <View style={styles.optionsContainer}>
+        <Text style={styles.sectionLabel}>Select Gender</Text>
         <Controller
           control={control}
           name="gender"
@@ -90,6 +102,13 @@ export default function GenderStep() {
 const styles = StyleSheet.create({
   optionsContainer: {
     flex: 1,
-    paddingTop: 10,
+  },
+  sectionLabel: {
+    fontFamily: 'SpaceMono',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+    marginBottom: 16,
   },
 });

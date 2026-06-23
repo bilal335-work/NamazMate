@@ -7,8 +7,11 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { useProfileSettings } from '@/features/profile/hooks/useProfileSettings';
 import { useUpdateProfile } from '@/features/profile/hooks/useUpdateProfile';
 
+import { useAuth } from '@/features/auth/hooks/useAuth';
+
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const { profile, isLoading } = useProfileSettings();
@@ -17,23 +20,28 @@ export default function EditProfileScreen() {
   const [name, setName] = useState(profile?.full_name || '');
   const [gender, setGender] = useState(profile?.gender || 'prefer_not_to_say');
 
-  const handleSave = () => {
+  React.useEffect(() => {
+    if (profile) {
+      setName(profile.full_name || '');
+      setGender(profile.gender || 'prefer_not_to_say');
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
 
-    updateProfile.mutate({
-      full_name: name.trim(),
-      gender,
-    }, {
-      onSuccess: () => {
-        router.back();
-      },
-      onError: (error: any) => {
-        Alert.alert('Error', error.message || 'Failed to update profile');
-      }
-    });
+    try {
+      await updateProfile.mutateAsync({
+        full_name: name.trim(),
+        gender,
+      });
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    }
   };
 
   if (isLoading) {
@@ -76,6 +84,15 @@ export default function EditProfileScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.label, { color: colors.text + '60' }]}>GENDER</Text>
+          <Text style={{ color: '#ef4444', fontSize: 10, marginBottom: 8, fontWeight: 'bold' }}>
+            Debug: URL = &quot;{process.env.EXPO_PUBLIC_SUPABASE_URL}&quot;, userId = &quot;{user?.id}&quot;
+          </Text>
+          <Text style={{ color: '#ef4444', fontSize: 10, marginBottom: 8, fontWeight: 'bold' }}>
+            Debug: profile.gender = &quot;{profile?.gender}&quot;, state.gender = &quot;{gender}&quot;
+          </Text>
+          <Text style={{ color: '#ef4444', fontSize: 9, marginBottom: 8 }}>
+            Debug: profileObj = {JSON.stringify(profile)}
+          </Text>
           <View style={[styles.genderContainer, { backgroundColor: 'white', borderColor: colors.text + '10' }]}>
             {genders.map((g, index) => (
               <TouchableOpacity

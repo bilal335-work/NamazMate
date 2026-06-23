@@ -24,15 +24,27 @@ export default function NotificationSettingsScreen() {
     before_prayer_minutes: notificationSettings?.before_prayer_minutes ?? 10,
   });
 
-  const handleSave = () => {
-    updateNotificationSettings.mutate(settings, {
-      onSuccess: () => {
-        router.back();
-      },
-      onError: (error: any) => {
-        Alert.alert('Error', error.message || 'Failed to update notification settings');
-      }
-    });
+  React.useEffect(() => {
+    if (notificationSettings) {
+      setSettings({
+        prayer_reminders_enabled: notificationSettings.prayer_reminders_enabled ?? true,
+        before_prayer_reminder_enabled: notificationSettings.before_prayer_reminder_enabled ?? true,
+        qaza_reminder_enabled: notificationSettings.qaza_reminder_enabled ?? true,
+        partner_activity_enabled: notificationSettings.partner_activity_enabled ?? true,
+        invite_notifications_enabled: notificationSettings.invite_notifications_enabled ?? true,
+        push_notifications_enabled: notificationSettings.push_notifications_enabled ?? false,
+        before_prayer_minutes: notificationSettings.before_prayer_minutes ?? 10,
+      });
+    }
+  }, [notificationSettings]);
+
+  const handleSave = async () => {
+    try {
+      await updateNotificationSettings.mutateAsync(settings);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update notification settings');
+    }
   };
 
   const toggleSetting = (key: keyof typeof settings) => {

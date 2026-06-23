@@ -1,13 +1,25 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useProfileSettings } from '@/features/profile/hooks/useProfileSettings';
-import { supabase } from '@/services/supabase/client';
+import { signOut } from '@/features/auth/services/auth.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileSection } from '@/components/profile/ProfileSection';
 import { ProfileRow } from '@/components/profile/ProfileRow';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  useAnimatedScrollHandler,
+  interpolate,
+  Extrapolate
+} from 'react-native-reanimated';
+
+const HEADER_MAX_HEIGHT = 280;
+const HEADER_MIN_HEIGHT = 80;
+const SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -15,6 +27,7 @@ export default function ProfileScreen() {
   const queryClient = useQueryClient();
   const { profile, location, prayerSettings, notificationSettings, activePair, isLoading } = useProfileSettings();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
     Alert.alert(
@@ -27,7 +40,7 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             setIsSigningOut(true);
-            const { error } = await supabase.auth.signOut();
+            const { error } = await signOut();
             setIsSigningOut(false);
             if (error) {
               Alert.alert('Error', 'Could not sign out. Please try again.');
@@ -41,14 +54,6 @@ export default function ProfileScreen() {
     );
   };
 
-  if (isLoading || isSigningOut) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#333333" />
-      </View>
-    );
-  }
-
   const formatLocation = () => {
     if (!location) return 'Not set';
     if (location.city && location.country) {
@@ -57,19 +62,66 @@ export default function ProfileScreen() {
     return 'Location set';
   };
 
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const height = interpolate(
+      scrollY.value,
+      [0, SCROLL_DISTANCE],
+      [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT + insets.top],
+      Extrapolate.CLAMP
+    );
+
+    return {
+      height,
+      backgroundColor: '#f4f1ea',
+      zIndex: 10,
+    };
+  });
+
+  if (isLoading || isSigningOut) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#333333" />
+      </View>
+    );
+  }
+
   const formatPrayerMethod = () => {
     if (!prayerSettings) return 'Not set';
     return prayerSettings.calculation_method.replace(/_/g, ' ');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <Animated.View style={[styles.animatedHeader, headerAnimatedStyle]}>
         <ProfileHeader 
           fullName={profile?.full_name || 'User'} 
           email={session?.user?.email || ''} 
+          avatarType={profile?.avatar_type as any}
+          avatarStyle={profile?.avatar_key}
           onEditAvatar={() => router.push('/profile/avatar')}
+          scrollY={scrollY}
+          headerMaxHeight={HEADER_MAX_HEIGHT}
+          headerMinHeight={HEADER_MIN_HEIGHT + insets.top}
         />
+      </Animated.View>
+
+      <Animated.ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent, 
+          { paddingTop: HEADER_MAX_HEIGHT + 20 }
+        ]} 
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
 
         <ProfileSection title="Account">
           <ProfileRow 
@@ -153,8 +205,8 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.bottomPadding} />
-      </ScrollView>
-    </SafeAreaView>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
@@ -162,6 +214,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f4f1ea',
+  },
+  animatedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   loadingContainer: {
     flex: 1,

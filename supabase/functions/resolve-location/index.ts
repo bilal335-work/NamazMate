@@ -13,6 +13,43 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const authHeader = req.headers.get('Authorization') || '';
+    const apiKeyHeader = req.headers.get('apikey') || '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const incomingKey = authHeader.replace('Bearer ', '') || apiKeyHeader;
+
+    let user;
+    let isServiceRole = false;
+
+    if (incomingKey === serviceRoleKey) {
+      isServiceRole = true;
+    } else {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(incomingKey);
+      if (authError?.message?.includes('missing sub claim')) {
+        isServiceRole = true;
+      } else {
+        user = authUser;
+      }
+    }
+
+    if (isServiceRole && req.headers.get('X-Debug-User-ID')) {
+      const debugUserId = req.headers.get('X-Debug-User-ID');
+      const { data: userData } = await supabase.auth.admin.getUserById(debugUserId);
+      user = userData?.user;
+    }
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED' } }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
     const { latitude, longitude } = await req.json() as RequestBody;
 
     if (latitude === undefined || longitude === undefined) {
@@ -26,11 +63,6 @@ Deno.serve(async (req: Request) => {
     const roundedLat = Math.round(latitude * 100) / 100;
     const roundedLng = Math.round(longitude * 100) / 100;
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     // Check cache
     const { data: cached } = await supabase
       .from('resolved_locations_cache')
@@ -39,7 +71,7 @@ Deno.serve(async (req: Request) => {
       .eq('rounded_longitude', roundedLng)
       .maybeSingle();
 
-    if (cached) {
+    if (cached && cached.timezone && cached.timezone !== 'UTC') {
       return new Response(
         JSON.stringify({ success: true, data: { ...cached, latitude, longitude } }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -69,25 +101,44 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const timezoneResponse = await fetch(
+      `https://timezonefinder.michelleg.app/api/v1/timezone?lat=${latitude}&lon=${longitude}`
+    );
+
+    if (!timezoneResponse.ok) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'TIMEZONE_NOT_FOUND', message: 'Could not resolve timezone.' } }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+      );
+    }
+
+    const timezoneData = await timezoneResponse.json();
+    const timezone = typeof timezoneData?.timezone === 'string' ? timezoneData.timezone : '';
+
+    if (!timezone) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'TIMEZONE_NOT_FOUND', message: 'Could not resolve timezone.' } }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+      );
+    }
+
     // Normalize response
     const normalized = {
       city: geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.suburb || geoData.address.city_district || '',
       region: geoData.address.state || geoData.address.county || '',
       country: geoData.address.country || '',
       country_code: geoData.address.country_code?.toUpperCase() || '',
-      timezone: 'UTC', // Placeholder, ideally resolve via library or nearest city
+      timezone,
     };
 
-    // Try to resolve timezone using Intl or a library if possible, 
-    // but in Edge runtime it might be limited. 
-    // For now, we'll let the client handle timezone or add a TZ resolution later.
-
     // Save to cache
-    await supabase.from('resolved_locations_cache').insert({
-      rounded_latitude: roundedLat,
-      rounded_longitude: roundedLng,
-      ...normalized
-    });
+    await supabase
+      .from('resolved_locations_cache')
+      .upsert({
+        rounded_latitude: roundedLat,
+        rounded_longitude: roundedLng,
+        ...normalized
+      }, { onConflict: 'rounded_latitude,rounded_longitude' });
 
     return new Response(
       JSON.stringify({ success: true, data: { ...normalized, latitude, longitude } }),

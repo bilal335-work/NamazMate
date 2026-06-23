@@ -1,31 +1,72 @@
-import { View, ViewProps } from 'react-native';
+import { View, ViewProps, StyleSheet } from 'react-native';
 import React from 'react';
 
 interface AppCardProps extends ViewProps {
   variant?: 'solid' | 'outline' | 'muted' | 'row';
   children: React.ReactNode;
-  className?: string;
 }
 
 export const AppCard: React.FC<AppCardProps> = ({
   variant = 'outline',
   children,
-  className = '',
+  style,
   ...props
 }) => {
-  const variantStyles = {
-    solid: 'bg-[#333333] p-6 rounded-3xl shadow-lg',
-    outline: 'border-2 border-[#333333] p-5 rounded-3xl bg-transparent',
-    muted: 'bg-[#333333]/5 border border-[#333333]/10 p-6 rounded-3xl',
-    row: 'bg-white/50 border border-[#333333]/20 p-4 rounded-2xl flex-row items-center',
+  const getVariantStyle = () => {
+    switch (variant) {
+      case 'solid':
+        return styles.solid;
+      case 'outline':
+        return styles.outline;
+      case 'muted':
+        return styles.muted;
+      case 'row':
+        return styles.row;
+      default:
+        return styles.outline;
+    }
   };
 
   return (
     <View 
-      className={`${variantStyles[variant]} ${className}`} 
+      style={[getVariantStyle(), style]} 
       {...props}
     >
       {children}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  solid: {
+    backgroundColor: '#333333',
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#333333',
+  },
+  outline: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+  },
+  muted: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    opacity: 0.1,
+    padding: 24,
+    borderRadius: 0,
+  },
+  row: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    padding: 16,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});

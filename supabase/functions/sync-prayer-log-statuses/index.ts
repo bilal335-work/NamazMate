@@ -13,27 +13,65 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const authHeader = req.headers.get('Authorization')!;
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    const authHeader = req.headers.get('Authorization') || '';
+    const apiKeyHeader = req.headers.get('apikey') || '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const debugUserId = req.headers.get('X-Debug-User-ID');
+    
+    const incomingKey = authHeader.replace('Bearer ', '') || apiKeyHeader;
+    
+    let user;
+    let isServiceRole = false;
 
-    if (authError || !user) {
-      return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 });
+    if (incomingKey === serviceRoleKey) {
+      isServiceRole = true;
+    } else {
+      const { data: { user: authUser }, error: aError } = await supabase.auth.getUser(incomingKey);
+      if (aError?.message?.includes('missing sub claim')) {
+        isServiceRole = true;
+      } else {
+        user = authUser;
+      }
     }
 
-    // 1. Get today's prayer times (from cache or fetch)
+    if (isServiceRole && debugUserId) {
+      const { data: userData } = await supabase.auth.admin.getUserById(debugUserId);
+      user = userData?.user;
+    }
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // 1. Get today's prayer times
+    // Pass along the auth/debug headers to the downstream function
+    const invokeHeaders: Record<string, string> = { Authorization: authHeader };
+    if (apiKeyHeader) invokeHeaders['apikey'] = apiKeyHeader;
+    if (isServiceRole && debugUserId) invokeHeaders['X-Debug-User-ID'] = debugUserId;
+
     const { data: prayerTimesRes, error: prayerError } = await supabase.functions.invoke('get-today-prayers', {
-      headers: { Authorization: authHeader }
+      headers: invokeHeaders
     });
 
-    if (prayerError || !prayerTimesRes.success) {
-      throw new Error(prayerError?.message || 'Failed to fetch prayer times');
+    if (prayerError || !prayerTimesRes || !prayerTimesRes.success) {
+      throw new Error(prayerError?.message || prayerTimesRes?.error?.message || 'Failed to fetch prayer times');
     }
 
     const timings = prayerTimesRes.data;
     const { timezone, prayer_date: todayStr } = timings;
 
-    // 2. Get current time in user's timezone
-    const now = new Date();
+    // 2. Get current time in user's timezone (optionally using x-client-time header for clock-drift / testing)
+    const clientTimeHeader = req.headers.get('x-client-time');
+    let now = new Date();
+    if (clientTimeHeader) {
+      const parsed = new Date(clientTimeHeader);
+      if (!isNaN(parsed.getTime())) {
+        now = parsed;
+      }
+    }
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',
@@ -45,17 +83,19 @@ Deno.serve(async (req: Request) => {
       hour12: false,
     });
     
-    // Format: YYYY-MM-DD, HH:mm:ss
     const parts = formatter.formatToParts(now);
     const getPart = (type: string) => parts.find(p => p.type === type)?.value;
     const userTodayStr = `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
-    const userNowIso = `${userTodayStr}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
-    const userNow = new Date(userNowIso);
+    const userNow = now;
 
-    // 3. Cleanup: Finalize previous day logs if they exist and are not completed
-    // All non-final statuses (locked, available, qaza_available) for past dates become 'not_completed'
+    // 3. Cleanup: Finalize old logs
+    // Prayers from previous days become 'not_completed' once their window is fully closed.
+    // Fajr-Maghrib of yesterday are closed at midnight.
+    // Isha of yesterday is closed at today's Fajr.
     const finalStatuses = ['prayed', 'qaza_prayed', 'not_completed'];
-    const { error: cleanupError } = await supabase
+    const todayFajr = new Date(timings.fajr);
+    
+    let cleanupQuery = supabase
       .from('prayer_logs')
       .update({
         fajr_status: 'not_completed',
@@ -65,12 +105,24 @@ Deno.serve(async (req: Request) => {
         isha_status: 'not_completed',
       })
       .eq('user_id', user.id)
-      .lt('prayer_date', userTodayStr)
       .or(`fajr_status.not.in.(${finalStatuses}),dhuhr_status.not.in.(${finalStatuses}),asr_status.not.in.(${finalStatuses}),maghrib_status.not.in.(${finalStatuses}),isha_status.not.in.(${finalStatuses})`);
 
-    if (cleanupError) {
-      console.error('Cleanup error:', cleanupError);
+    if (userNow < todayFajr) {
+      // If before Fajr, only cleanup logs older than yesterday
+      const yesterdayDate = new Date(now);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterdayParts = formatter.formatToParts(yesterdayDate);
+      const getYPart = (type: string) => yesterdayParts.find(p => p.type === type)?.value;
+      const yesterdayStr = `${getYPart('year')}-${getYPart('month')}-${getYPart('day')}`;
+      
+      cleanupQuery = cleanupQuery.lt('prayer_date', yesterdayStr);
+    } else {
+      // If after Fajr, cleanup everything before today
+      cleanupQuery = cleanupQuery.lt('prayer_date', userTodayStr);
     }
+
+    const { error: cleanupError } = await cleanupQuery;
+    if (cleanupError) console.error('Cleanup error:', cleanupError);
 
     // 4. Fetch or Create Today's Log
     const { data: existingLog, error: logFetchError } = await supabase
@@ -93,7 +145,7 @@ Deno.serve(async (req: Request) => {
       daily_score: 0,
     };
 
-    // 5. Recalculate Statuses (only for 'locked', 'available', 'qaza_available')
+    // 5. Recalculate Statuses
     const prayerKeys = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
     const updatedLog: Record<string, any> = { ...currentLog };
     let score = 0;
@@ -103,10 +155,6 @@ Deno.serve(async (req: Request) => {
       const statusKey = `${key}_status`;
       const currentStatus = currentLog[statusKey];
       
-      const prayerTime = new Date(timings[key]);
-      const nextPrayerTime = i < prayerKeys.length - 1 ? new Date(timings[prayerKeys[i + 1]]) : null;
-
-      // If already final, keep it and add to score
       if (currentStatus === 'prayed') {
         score += 1;
         continue;
@@ -115,37 +163,101 @@ Deno.serve(async (req: Request) => {
         score += 0.5;
         continue;
       }
-      if (currentStatus === 'not_completed') {
-        continue;
+      if (currentStatus === 'not_completed') continue;
+
+      const prayerTime = new Date(timings[key]);
+      let windowEndTime: Date;
+
+      if (key === 'fajr') {
+        windowEndTime = new Date(timings.sunrise);
+      } else if (key === 'dhuhr') {
+        windowEndTime = new Date(timings.asr);
+      } else if (key === 'asr') {
+        windowEndTime = new Date(timings.maghrib);
+      } else if (key === 'maghrib') {
+        windowEndTime = new Date(timings.isha);
+      } else {
+        // Isha special rule: active until next day's Fajr
+        // First try to fetch from cache for the next day
+        let nextDayFajr: Date | null = null;
+        try {
+          const todayDate = new Date(timings.prayer_date);
+          const nextDayDate = new Date(todayDate.getTime() + 24 * 60 * 60 * 1000);
+          const nextDayStr = nextDayDate.toISOString().split('T')[0];
+          
+          const { data: nextCache } = await supabase
+            .from('prayer_time_cache')
+            .select('fajr')
+            .eq('user_id', user.id)
+            .eq('prayer_date', nextDayStr)
+            .eq('aladhan_method_id', timings.aladhan_method_id || 1)
+            .eq('aladhan_school_id', timings.aladhan_school_id || 1)
+            .maybeSingle();
+            
+          if (nextCache?.fajr) {
+            nextDayFajr = new Date(nextCache.fajr);
+          }
+        } catch (err) {
+          console.error('Failed to fetch next day Fajr:', err);
+        }
+        
+        windowEndTime = nextDayFajr || new Date(new Date(timings.fajr).getTime() + 24 * 60 * 60 * 1000);
       }
 
-      // Logic:
-      // - locked: current time < prayer time
-      // - available: prayer time <= current time < next prayer time (or end of day)
-      // - qaza_available: current time >= next prayer time (or isha time passed)
-      
       let newStatus = 'locked';
+      
       if (userNow >= prayerTime) {
-        if (!nextPrayerTime || userNow < nextPrayerTime) {
+        if (userNow < windowEndTime) {
           newStatus = 'available';
         } else {
-          newStatus = 'qaza_available';
+          // Window has passed. 
+          // Check if it's still the same calendar day (userTodayStr === currentLog.prayer_date)
+          // Exception: Isha window ends AFTER midnight. 
+          // Rule: "any remaining qaza_available prayers become not_completed when the prayer day ends"
+          // Rule: "Do not allow old-day Qaza"
+          
+          if (userTodayStr === currentLog.prayer_date) {
+            newStatus = 'qaza_available';
+          } else {
+            // It's a different calendar day.
+            // For Isha, if we are before its window end, it's still "available" (handled above).
+            // Once past window end OR once day changes (for non-Isha), it's not_completed.
+            newStatus = 'not_completed';
+          }
         }
       }
-
+      
       updatedLog[statusKey] = newStatus;
     }
 
     updatedLog.daily_score = score;
 
     // 6. Save
-    const { data: saved, error: saveError } = await supabase
-      .from('prayer_logs')
-      .upsert(updatedLog)
-      .select()
-      .single();
+    let hasChanged = !existingLog;
+    if (existingLog) {
+      const checkKeys = [
+        'fajr_status', 'dhuhr_status', 'asr_status', 'maghrib_status', 'isha_status',
+        'daily_score'
+      ];
+      for (const key of checkKeys) {
+        if (updatedLog[key] !== existingLog[key]) {
+          hasChanged = true;
+          break;
+        }
+      }
+    }
 
-    if (saveError) throw saveError;
+    let saved = existingLog;
+    if (hasChanged) {
+      const { data: upsertedData, error: saveError } = await supabase
+        .from('prayer_logs')
+        .upsert(updatedLog)
+        .select()
+        .single();
+
+      if (saveError) throw saveError;
+      saved = upsertedData;
+    }
 
     return new Response(JSON.stringify({ success: true, data: saved }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
 

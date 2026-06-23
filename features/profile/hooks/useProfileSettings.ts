@@ -1,41 +1,36 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { profileService } from '@/services/supabase/profile.service';
-import { locationService } from '@/services/location/location.service';
 import { supabase } from '@/services/supabase/client';
+
+const firstRelated = <T>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+};
 
 export const useProfileSettings = () => {
   const { user } = useAuth();
 
-  const { data: profile, isLoading: loadingProfile } = useQuery({
-    queryKey: ['profile', user?.id],
-    queryFn: () => profileService.getProfile(user!.id),
-    enabled: !!user?.id,
-  });
-
-  const { data: location, isLoading: loadingLocation } = useQuery({
-    queryKey: ['user_location', user?.id],
-    queryFn: () => locationService.getUserLocation(user!.id),
-    enabled: !!user?.id,
-  });
-
-  const { data: prayerSettings, isLoading: loadingPrayerSettings } = useQuery({
-    queryKey: ['prayer_settings', user?.id],
+  const { data: settings, isLoading: loadingSettings } = useQuery({
+    queryKey: ['profile_settings', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('prayer_settings')
-        .select('*')
-        .eq('user_id', user!.id)
+        .from('profiles')
+        .select('*, user_locations(*), prayer_settings(*), notification_settings(*)')
+        .eq('id', user!.id)
         .single();
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    },
-    enabled: !!user?.id,
-  });
 
-  const { data: notificationSettings, isLoading: loadingNotificationSettings } = useQuery({
-    queryKey: ['notification_settings', user?.id],
-    queryFn: () => profileService.getNotificationSettings(user!.id),
+      if (error && error.code !== 'PGRST116') throw error;
+
+      return {
+        profile: data,
+        location: firstRelated(data?.user_locations),
+        prayerSettings: firstRelated(data?.prayer_settings),
+        notificationSettings: firstRelated(data?.notification_settings),
+      };
+    },
     enabled: !!user?.id,
   });
 
@@ -56,11 +51,11 @@ export const useProfileSettings = () => {
   });
 
   return {
-    profile,
-    location,
-    prayerSettings,
-    notificationSettings,
+    profile: settings?.profile ?? null,
+    location: settings?.location ?? null,
+    prayerSettings: settings?.prayerSettings ?? null,
+    notificationSettings: settings?.notificationSettings ?? null,
     activePair,
-    isLoading: loadingProfile || loadingLocation || loadingPrayerSettings || loadingNotificationSettings || loadingPair,
+    isLoading: loadingSettings || loadingPair,
   };
 };

@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { CheckCircle2, Circle, AlertCircle, Bell } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { PrayerStatus } from '@/types/prayer';
+import { PrayerStatus } from '@/features/prayers/types';
 
 interface DuoPrayerComparisonRowProps {
   prayerName: string;

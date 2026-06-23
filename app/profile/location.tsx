@@ -1,27 +1,21 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Modal, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
+import { StyleSheet, View, Text, Modal, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 import { MapPin, Search, X, ArrowLeft } from 'lucide-react-native';
-import { useQueryClient } from '@tanstack/react-query';
 
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { profileService } from '@/services/supabase/profile.service';
-import { locationService, City } from '@/services/location/location.service';
+import { locationService, City } from '@/features/location/services/location.service';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useLocation } from '@/features/location/hooks/useLocation';
-import { useSchedulePrayerNotifications } from '@/features/notifications/hooks/useSchedulePrayerNotifications';
+import { useSaveLocation } from '@/features/location/hooks/useSaveLocation';
 
 export default function UpdateLocationScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { scheduleAll } = useSchedulePrayerNotifications();
+  const { loading, saveCurrentLocation, saveCityLocation } = useSaveLocation();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
 
-  const [loading, setLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [cities, setCities] = useState<City[]>([]);
@@ -35,66 +29,29 @@ export default function UpdateLocationScreen() {
 
   const [selectionMode, setSelectionMode] = useState<'search' | 'hierarchical'>('search');
 
-  const handleUpdateLocation = async (locationData: any) => {
-    if (!user) return;
-    setLoading(true);
+  const handleUseGPS = async () => {
     try {
-      await profileService.saveLocation(user.id, {
-        ...locationData,
-        updated_at: new Date().toISOString(),
+      await saveCurrentLocation({
+        rescheduleNotifications: true,
+        useNearestCityCoordinates: false,
       });
-      
-      // Invalidate queries to refresh prayer times and location display
-      await queryClient.invalidateQueries({ queryKey: ['user_location', user.id] });
-      await queryClient.invalidateQueries({ queryKey: ['todayPrayers'] });
-      
-      // Reschedule notifications for new location
-      await scheduleAll(true);
-      
+
       Alert.alert('Success', 'Location updated successfully. Prayer times have been refreshed.');
       router.back();
     } catch (error) {
-      console.error('Error updating location:', error);
-      Alert.alert('Error', 'Could not update location. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUseGPS = async () => {
-    setLoading(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      console.error('Error using GPS:', error);
+      if (error instanceof Error && error.message === 'LOCATION_PERMISSION_DENIED') {
         Alert.alert('Permission Denied', 'Location permission is required to use GPS.');
-        setLoading(false);
         return;
       }
 
-      const pos = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = pos.coords;
-      const resolved = await locationService.resolveLocation(latitude, longitude);
-      
-      if (resolved && resolved.city) {
-        await handleUpdateLocation({
-          latitude,
-          longitude,
-          city: resolved.city,
-          region: resolved.region || undefined,
-          country: resolved.country || '',
-          country_code: resolved.country_code || '',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          location_source: 'gps',
-        });
-      } else {
+      if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
         Alert.alert('Location Not Found', 'We could not determine your city from GPS. Please select it manually.');
         setShowSearch(true);
+        return;
       }
-    } catch (error) {
-      console.error('Error using GPS:', error);
+
       Alert.alert('Error', 'An error occurred while getting your location.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -110,18 +67,16 @@ export default function UpdateLocationScreen() {
     }
   };
 
-  const handleSelectCity = (city: City) => {
-    handleUpdateLocation({
-      latitude: city.latitude,
-      longitude: city.longitude,
-      city: city.city,
-      region: city.region || undefined,
-      country: city.country,
-      country_code: city.country_code,
-      timezone: city.timezone,
-      location_source: 'city_selector',
-    });
-    setShowSearch(false);
+  const handleSelectCity = async (city: City) => {
+    try {
+      await saveCityLocation(city, { rescheduleNotifications: true });
+      setShowSearch(false);
+      Alert.alert('Success', 'Location updated successfully. Prayer times have been refreshed.');
+      router.back();
+    } catch (error) {
+      console.error('Error updating location:', error);
+      Alert.alert('Error', 'Could not update location. Please try again.');
+    }
   };
 
   return (

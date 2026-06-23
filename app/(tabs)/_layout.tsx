@@ -2,6 +2,7 @@ import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
+import DevPanel from '@/components/dev/DevPanel';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -18,7 +19,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { session, user, onboardingCompleted, loading } = useAuth();
+  const { session, user, isFullySetup, loading } = useAuth();
   const headerShown = useClientOnlyValue(false, true);
 
   // If auth is loading, show safe loading screen
@@ -30,41 +31,41 @@ export default function TabLayout() {
     );
   }
 
-  // Only mount tabs after authenticated + verified + onboarding complete
-  if (!session || !user?.email_confirmed_at || !onboardingCompleted) {
+  // Only mount tabs after authenticated + verified + onboarding complete (and data setup)
+  if (!session || !user?.email_confirmed_at || !isFullySetup) {
     return null;
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: headerShown,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="duo"
-        options={{
-          title: 'Duo',
-          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
-        }}
-      />
-
-    </Tabs>
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          headerShown: false,
+        }}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="duo"
+          options={{
+            title: 'Duo',
+            tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          }}
+        />
+      </Tabs>
+      {__DEV__ && <DevPanel />}
+    </>
   );
 }

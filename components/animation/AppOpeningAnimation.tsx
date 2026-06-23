@@ -14,25 +14,26 @@ import Animated, {
 
 interface AppOpeningAnimationProps {
   onComplete: () => void;
+  ready?: boolean;
 }
 
 const BRAND_NAME = 'NamazMate';
 const TYPEWRITER_SPEED = 80;
 const HOLD_DURATION = 600;
+const MAX_READY_TIMEOUT = 8000; // Increased to 8s to ensure data preloading completes
 const STAIRCASE_DURATION = 800;
 const STAIRCASE_STAGGER = 50;
+const TEXT_EXIT_DELAY = 120;
 const EASING = Easing.bezier(0.76, 0, 0.24, 1);
-const CURSOR_BLINK_DURATION = 500;
 
 interface ColumnProps {
   index: number;
   width: number;
   height: number;
   startAnimation: boolean;
-  onAnimationEnd?: () => void;
 }
 
-const Column: React.FC<ColumnProps> = ({ index, width, height, startAnimation, onAnimationEnd }) => {
+const Column: React.FC<ColumnProps> = ({ index, width, height, startAnimation }) => {
   const translateY = useSharedValue(0);
 
   useEffect(() => {
@@ -40,13 +41,9 @@ const Column: React.FC<ColumnProps> = ({ index, width, height, startAnimation, o
       translateY.value = withDelay(index * STAIRCASE_STAGGER, withTiming(height, {
         duration: STAIRCASE_DURATION,
         easing: EASING
-      }, (finished) => {
-        if (finished && onAnimationEnd) {
-          runOnJS(onAnimationEnd)();
-        }
       }));
     }
-  }, [startAnimation, height, index, onAnimationEnd, translateY]);
+  }, [startAnimation, height, index, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -63,49 +60,59 @@ const Column: React.FC<ColumnProps> = ({ index, width, height, startAnimation, o
   );
 };
 
-export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComplete }) => {
+export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComplete, ready }) => {
   const { width, height } = useWindowDimensions();
   const [displayText, setDisplayText] = useState('');
   const [showCursor, setShowCursor] = useState(true);
+  const [typewriterFinished, setTypewriterFinished] = useState(false);
   const [triggerStaircase, setTriggerStaircase] = useState(false);
   
-  // Shared value for text
   const textTranslateY = useSharedValue(0);
   const textOpacity = useSharedValue(1);
   const cursorOpacity = useSharedValue(1);
   const isReducedMotion = useReducedMotion();
 
   const startStaircase = useCallback(() => {
-    // Move text down and fade out
-    textTranslateY.value = withDelay(120, withTiming(height, { 
+    if (triggerStaircase) return;
+    setTriggerStaircase(true);
+
+    // Phase 3: Staircase Down Reveal
+    textTranslateY.value = withDelay(TEXT_EXIT_DELAY, withTiming(height, { 
       duration: STAIRCASE_DURATION, 
       easing: EASING 
     }));
-    textOpacity.value = withDelay(120, withTiming(0, { 
-      duration: STAIRCASE_DURATION / 2, 
+    textOpacity.value = withDelay(TEXT_EXIT_DELAY, withTiming(0, { 
+      duration: STAIRCASE_DURATION * 0.8, 
       easing: EASING 
     }));
 
-    setTriggerStaircase(true);
-  }, [height, textOpacity, textTranslateY]);
+    // Phase 4: Hand-off
+    // Total duration = Stagger * (Columns - 1) + Duration
+    const totalDuration = (5 * STAIRCASE_STAGGER) + STAIRCASE_DURATION;
+    setTimeout(onComplete, totalDuration);
+  }, [height, onComplete, textOpacity, textTranslateY, triggerStaircase]);
+
+  const hasStarted = React.useRef(false);
 
   useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+
     if (isReducedMotion) {
       onComplete();
       return;
     }
 
-    // Cursor blinking animation
+    // Phase 1: Typewriter Build-Up
     cursorOpacity.value = withRepeat(
       withSequence(
-        withTiming(0, { duration: CURSOR_BLINK_DURATION }),
-        withTiming(1, { duration: CURSOR_BLINK_DURATION })
+        withTiming(0, { duration: 500 }),
+        withTiming(1, { duration: 500 })
       ),
       -1,
       true
     );
 
-    // Typewriter effect
     let currentIndex = 0;
     const interval = setInterval(() => {
       if (currentIndex < BRAND_NAME.length) {
@@ -113,16 +120,37 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
         currentIndex++;
       } else {
         clearInterval(interval);
+        // Phase 2: Suspense Hold
         setShowCursor(false);
-        // Start staircase animation after hold
-        setTimeout(startStaircase, HOLD_DURATION);
+        setTypewriterFinished(true);
       }
     }, TYPEWRITER_SPEED);
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [startStaircase, isReducedMotion, onComplete, cursorOpacity]);
+    return () => clearInterval(interval);
+  }, [isReducedMotion, onComplete]);
+
+  // Effect to wait for both typewriter to finish AND data to be ready
+  useEffect(() => {
+    if (typewriterFinished) {
+      let timeout: any;
+      
+      if (ready) {
+        // Data is already ready or just became ready
+        if (__DEV__) console.log('[AppOpeningAnimation] Ready! Starting staircase.');
+        startStaircase();
+      } else {
+        // Wait for data with a max timeout
+        timeout = setTimeout(() => {
+          if (__DEV__) console.log('[AppOpeningAnimation] Ready timeout reached, forcing reveal');
+          startStaircase();
+        }, MAX_READY_TIMEOUT);
+      }
+      
+      return () => {
+        if (timeout) clearTimeout(timeout);
+      };
+    }
+  }, [typewriterFinished, ready, startStaircase]);
 
   const textAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: textTranslateY.value }],
@@ -136,8 +164,7 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
   const columnWidth = width / 6;
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* 6 Vertical Columns */}
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: triggerStaircase ? 'transparent' : '#1a1a1a' }]}>
       <View style={styles.columnsContainer}>
         {[0, 1, 2, 3, 4, 5].map((index) => (
           <Column 
@@ -146,12 +173,10 @@ export const AppOpeningAnimation: React.FC<AppOpeningAnimationProps> = ({ onComp
             width={columnWidth}
             height={height}
             startAnimation={triggerStaircase}
-            onAnimationEnd={index === 5 ? onComplete : undefined}
           />
         ))}
       </View>
 
-      {/* Brand Text */}
       <View style={styles.textContainer} pointerEvents="none">
         <Animated.View style={[styles.textWrapper, textAnimatedStyle]}>
           <Text style={styles.text}>{displayText}</Text>
@@ -187,16 +212,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   text: {
-    color: '#f4f1ea',
-    fontSize: 40,
-    fontWeight: 'bold',
-    letterSpacing: -1,
+    color: '#ffffff',
+    fontSize: 48,
+    fontFamily: 'TitanOne_400Regular', // Using the specified font
+    letterSpacing: 0,
   },
   cursor: {
-    width: 8,
-    height: 32,
-    backgroundColor: '#f4f1ea',
-    marginLeft: 4,
-    borderRadius: 4,
+    width: 12,
+    height: 36, // ~0.7em of 48 is ~34px
+    backgroundColor: '#ffffff',
+    marginLeft: 6,
+    borderRadius: 6,
   },
 });

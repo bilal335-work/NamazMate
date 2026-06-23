@@ -40,19 +40,25 @@ export default function PrayerSettingsScreen() {
   const [asr, setAsr] = useState(prayerSettings?.asr_method || 'STANDARD');
   const [format, setFormat] = useState(prayerSettings?.time_format || '12h');
 
-  const handleSave = () => {
-    updatePrayerSettings.mutate({
-      calculation_method: method,
-      asr_method: asr as 'STANDARD' | 'HANAFI',
-      time_format: format as '12h' | '24h',
-    }, {
-      onSuccess: () => {
-        router.back();
-      },
-      onError: (error: any) => {
-        Alert.alert('Error', error.message || 'Failed to update prayer settings');
-      }
-    });
+  React.useEffect(() => {
+    if (prayerSettings) {
+      setMethod(prayerSettings.calculation_method || 'AUTO');
+      setAsr(prayerSettings.asr_method || 'STANDARD');
+      setFormat(prayerSettings.time_format || '12h');
+    }
+  }, [prayerSettings]);
+
+  const handleSave = async () => {
+    try {
+      await updatePrayerSettings.mutateAsync({
+        calculation_method: method,
+        asr_method: asr as 'STANDARD' | 'HANAFI',
+        time_format: format as '12h' | '24h',
+      });
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update prayer settings');
+    }
   };
 
   if (isLoading) {

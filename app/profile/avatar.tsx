@@ -1,20 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Check } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useProfileSettings } from '@/features/profile/hooks/useProfileSettings';
 import { useUpdateProfile } from '@/features/profile/hooks/useUpdateProfile';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-
-const AVATAR_STYLES = [
-  'islamic_minimal',
-  'geometric_pattern',
-  'calligraphy_style',
-  'nature_minimal',
-  'abstract_soft',
-];
+import { AvatarPicker } from '@/components/profile/AvatarPicker';
 
 export default function AvatarPickerScreen() {
   const router = useRouter();
@@ -23,12 +17,18 @@ export default function AvatarPickerScreen() {
   const { profile, isLoading } = useProfileSettings();
   const { updateProfile } = useUpdateProfile();
 
-  const [selectedStyle, setSelectedStyle] = useState(profile?.avatar_style || 'islamic_minimal');
+  const [selectedKey, setSelectedKey] = useState(profile?.avatar_key || null);
 
   const handleSave = () => {
+    if (!selectedKey) {
+      Alert.alert('Selection Required', 'Please select an avatar before saving.');
+      return;
+    }
+
     updateProfile.mutate({
       avatar_type: 'default_vector',
-      avatar_style: selectedStyle,
+      avatar_style: 'islamic_minimal',
+      avatar_key: selectedKey,
     }, {
       onSuccess: () => {
         router.back();
@@ -61,31 +61,17 @@ export default function AvatarPickerScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.previewContainer}>
-          <UserAvatar size={120} style={selectedStyle} />
+          <UserAvatar size={160} type="default_vector" style={selectedKey} />
           <Text style={[styles.previewLabel, { color: colors.text + '40' }]}>Preview</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text + '60' }]}>DEFAULT STYLES</Text>
-          <View style={styles.grid}>
-            {AVATAR_STYLES.map((style) => (
-              <TouchableOpacity
-                key={style}
-                style={[
-                  styles.avatarOption,
-                  { borderColor: selectedStyle === style ? colors.primary : colors.text + '10' }
-                ]}
-                onPress={() => setSelectedStyle(style)}
-              >
-                <UserAvatar size={60} style={style} />
-                {selectedStyle === style && (
-                  <View style={[styles.checkBadge, { backgroundColor: colors.primary }]}>
-                    <Check size={12} color="white" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={[styles.label, { color: colors.text + '60' }]}>DEFAULT AVATARS</Text>
+          <AvatarPicker 
+            gender={profile?.gender as any}
+            selectedAvatarKey={selectedKey}
+            onSelect={(avatar) => setSelectedKey(avatar.storagePath)}
+          />
         </View>
 
         <View style={styles.uploadSection}>
@@ -96,9 +82,6 @@ export default function AvatarPickerScreen() {
           >
             <Text style={{ color: colors.text + '40' }}>Upload from Gallery</Text>
           </TouchableOpacity>
-          <Text style={[styles.hint, { color: colors.text + '40' }]}>
-            TODO: Implement Supabase Storage integration for custom photo uploads once bucket security is finalized.
-          </Text>
         </View>
       </ScrollView>
 
@@ -160,34 +143,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginLeft: 4,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    justifyContent: 'center',
-  },
-  avatarOption: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    position: 'relative',
-  },
-  checkBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
   uploadSection: {
     marginBottom: 32,
   },
@@ -198,12 +153,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  hint: {
-    fontSize: 12,
-    marginTop: 12,
-    textAlign: 'center',
-    paddingHorizontal: 20,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

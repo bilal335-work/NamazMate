@@ -45,10 +45,17 @@ export function useDuoRealtime() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'prayer_logs' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['prayerLog'] });
-          queryClient.invalidateQueries({ queryKey: ['partner-prayer-log'] });
-          queryClient.invalidateQueries({ queryKey: ['duo-history'] });
+        (payload) => {
+          const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+          const changedUserId = newRow?.user_id || oldRow?.user_id;
+
+          if (changedUserId === user.id) {
+            queryClient.invalidateQueries({ queryKey: ['prayerLog'] });
+          } else if (changedUserId) {
+            queryClient.invalidateQueries({ queryKey: ['partner-prayer-log'] });
+            queryClient.invalidateQueries({ queryKey: ['duo-history'] });
+          }
         }
       )
       .subscribe();

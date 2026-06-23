@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { duoService } from '@/services/duo/duo.service';
+import { duoService } from '@/features/duo/services/duo.service';
 
 interface SendReminderParams {
   pairId: string;

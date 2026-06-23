@@ -4,7 +4,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AppCard } from '@/components/ui/AppCard';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { DuoPartner } from '@/types/duo';
+import { DuoPartner } from '@/features/duo/types';
 
 interface DuoSummaryCardProps {
   userScore: number;
